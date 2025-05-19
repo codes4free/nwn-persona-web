@@ -61,8 +61,92 @@ socket.on('character_change', (data) => {
 
 // Listen for new chat messages
 socket.on('new_message', (data) => {
-    console.log('New message:', data);
-    appendChatMessage(data.message, data.is_own, data.original_message);
+    // Debug diagnostic information
+    console.log('%c NEW MESSAGE RECEIVED', 'background: green; color: white; font-size: 16px;');
+    console.log('Message data:', data);
+    
+    // Visual indicators
+    document.title = "New message!"; // Change page title to indicate new message
+    
+    // Add a global alert for debugging
+    let debugAlert = document.createElement('div');
+    debugAlert.style.position = 'fixed';
+    debugAlert.style.top = '10px';
+    debugAlert.style.right = '10px';
+    debugAlert.style.padding = '10px';
+    debugAlert.style.background = '#ffcc00';
+    debugAlert.style.border = '1px solid #cc9900';
+    debugAlert.style.zIndex = '9999';
+    debugAlert.textContent = 'New message received at ' + new Date().toLocaleTimeString();
+    document.body.appendChild(debugAlert);
+    
+    // Remove the alert after 5 seconds
+    setTimeout(() => {
+        debugAlert.remove();
+    }, 5000);
+    
+    // Try to append to chat
+    try {
+        console.log('Attempting to append message');
+        console.log('Chat messages container:', chatMessagesElement);
+        console.log('Message content:', data.message);
+        
+        if (!chatMessagesElement) {
+            console.error('Chat messages container is null or undefined!');
+            // Try to get it again
+            chatMessagesElement = document.getElementById('chat-messages');
+            if (!chatMessagesElement) {
+                console.error('Failed to find chat-messages element!');
+                return;
+            }
+        }
+        
+        appendChatMessage(data.message, data.is_own, data.original_message);
+        console.log('Message appended to chat');
+        
+        // Force scroll to bottom
+        chatMessagesElement.scrollTop = chatMessagesElement.scrollHeight;
+    } catch (error) {
+        console.error('Error appending message:', error);
+        
+        // Fallback direct DOM manipulation
+        try {
+            console.log('Attempting fallback direct DOM insertion');
+            const msgEl = document.createElement('div');
+            msgEl.className = 'message message-other';
+            msgEl.innerHTML = data.message + '<div class="message-time">' + new Date().toLocaleTimeString() + '</div>';
+            
+            const chatContainer = document.getElementById('chat-messages');
+            if (chatContainer) {
+                chatContainer.appendChild(msgEl);
+                console.log('Fallback insertion successful');
+            } else {
+                console.error('Could not find chat-messages container for fallback!');
+            }
+        } catch (fallbackError) {
+            console.error('Even fallback insertion failed:', fallbackError);
+        }
+    }
+});
+
+// Listen for system messages
+socket.on('system_message', (data) => {
+    console.log('System message:', data);
+    // Add system message to chat
+    const messageElement = document.createElement('div');
+    messageElement.className = 'message system-message';
+    messageElement.innerHTML = `<strong>System:</strong> ${data.message}`;
+    
+    // Add timestamp
+    const timestampElement = document.createElement('div');
+    timestampElement.className = 'message-time';
+    timestampElement.textContent = new Date().toLocaleTimeString();
+    messageElement.appendChild(timestampElement);
+    
+    chatMessagesElement.appendChild(messageElement);
+    
+    // Auto-scroll
+    chatMessagesElement.scrollTop = chatMessagesElement.scrollHeight;
 });
 
 // Listen for player messages that may need a response
@@ -156,18 +240,45 @@ socket.on('activation_result', (data) => {
 // UI event listeners
 generateResponseButton.addEventListener('click', () => {
     // Check if we have a selected message or fall back to the last player message
-    const messageToRespond = selectedMessage || lastPlayerMessage;
-    const messageSource = selectedMessage ? selectedMessage.playerName : lastPlayerName;
+    const messageToRespond = selectedMessage || (lastPlayerMessage && lastPlayerName ? {text: lastPlayerMessage, playerName: lastPlayerName} : null);
     
-    if (activeCharacter && messageToRespond) {
-        incomingMessageElement.innerHTML = `<strong>${messageSource}:</strong> ${messageToRespond.text || messageToRespond}`;
-        responseOptionsElement.innerHTML = '<p class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></p>';
-        socket.emit('request_ai_reply', {
-            character: activeCharacter,
-            message: messageToRespond.text || messageToRespond,
-            player_name: messageSource
-        });
+    if (!activeCharacter) {
+        // Show a notification if no character is selected
+        const toastBody = notificationToast.querySelector('.toast-body');
+        toastBody.textContent = 'Please select a character first!';
+        toast.show();
+        return;
     }
+    
+    if (!messageToRespond) {
+        // Show a notification if no message is selected
+        const toastBody = notificationToast.querySelector('.toast-body');
+        toastBody.textContent = 'Please select a message to respond to!';
+        toast.show();
+        return;
+    }
+    
+    // Update message display
+    const messageSource = messageToRespond.playerName || lastPlayerName || 'Player';
+    const messageText = messageToRespond.text || messageToRespond || lastPlayerMessage || '';
+    
+    // Update UI to show the message we're responding to
+    incomingMessageElement.innerHTML = `<strong>${messageSource}:</strong> ${messageText}`;
+    responseOptionsElement.innerHTML = '<p class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div> Generating responses...</p>';
+    
+    // Log what we're sending
+    console.log('Requesting AI response:', {
+        character: activeCharacter,
+        message: messageText,
+        player_name: messageSource
+    });
+    
+    // Send the request
+    socket.emit('request_ai_reply', {
+        character: activeCharacter,
+        message: messageText,
+        player_name: messageSource
+    });
 });
 
 // Translation button handler
@@ -237,35 +348,63 @@ function fetchCharacters() {
 }
 
 function updateCharacterList(characters) {
+    console.log('Updating character list with', characters);
+    
+    // Clear the list first
     characterListElement.innerHTML = '';
     
-    if (characters.length === 0) {
-        characterListElement.innerHTML = '<p class="text-muted">No characters available</p>';
-        return;
-    }
+    // Add a "Create New Character" button at the top
+    const createBtn = document.createElement('a');
+    createBtn.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center character-create-btn';
+    createBtn.href = '/create-character';
+    createBtn.innerHTML = '<i class="bi bi-plus-circle-fill me-2"></i> Create New Character';
+    createBtn.style.backgroundColor = '#212529';
+    createBtn.style.color = '#fff';
+    createBtn.style.borderColor = '#17a2b8';
+    characterListElement.appendChild(createBtn);
     
-    characters.forEach(character => {
-        const item = document.createElement('a');
-        item.href = '#';
-        item.className = 'list-group-item';
-        if (character === activeCharacter) {
-            item.className += ' active';
+    // Add a divider after the create button
+    const divider = document.createElement('div');
+    divider.className = 'list-group-item p-1 bg-secondary opacity-50';
+    divider.style.height = '2px';
+    characterListElement.appendChild(divider);
+    
+    // Add the list of characters
+    characters.forEach(char => {
+        const item = document.createElement('div');
+        item.className = 'list-group-item list-group-item-action character-item d-flex justify-content-between align-items-center';
+        // Apply active class if this is the active character
+        if (char === activeCharacter) {
+            item.classList.add('active');
         }
-        item.textContent = character;
-        item.addEventListener('click', (e) => {
-            e.preventDefault();
-            activateCharacter(character);
-        });
         
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = char;
+        nameSpan.style.cursor = 'pointer';
+        nameSpan.addEventListener('click', () => activateCharacter(char));
+        item.appendChild(nameSpan);
+        
+        const buttonGroup = document.createElement('div');
+        buttonGroup.className = 'btn-group btn-group-sm';
+        
+        const editBtn = document.createElement('a');
+        editBtn.className = 'btn btn-outline-primary btn-sm';
+        editBtn.href = `/edit-character?name=${encodeURIComponent(char)}`;
+        editBtn.innerHTML = '<i class="bi bi-pencil"></i>';
+        editBtn.title = 'Edit character';
+        buttonGroup.appendChild(editBtn);
+        
+        item.appendChild(buttonGroup);
         characterListElement.appendChild(item);
     });
 }
 
 function activateCharacter(characterName) {
     // First update the UI to show character as selected
-    const items = characterListElement.querySelectorAll('.list-group-item');
+    const items = characterListElement.querySelectorAll('.character-item');
     items.forEach(item => {
-        if (item.textContent === characterName) {
+        const nameText = item.querySelector('span')?.textContent || item.textContent;
+        if (nameText === characterName) {
             item.classList.add('active');
         } else {
             item.classList.remove('active');
@@ -294,9 +433,10 @@ function updateCharacterDisplay(characterName) {
     characterNameElement.textContent = characterName;
     
     // Update the active item in the character list
-    const items = characterListElement.querySelectorAll('.list-group-item');
+    const items = characterListElement.querySelectorAll('.character-item');
     items.forEach(item => {
-        if (item.textContent === characterName) {
+        const nameText = item.querySelector('span')?.textContent || item.textContent;
+        if (nameText === characterName) {
             item.classList.add('active');
         } else {
             item.classList.remove('active');
@@ -339,72 +479,30 @@ function fetchCharacterDetails(characterName) {
 }
 
 function appendChatMessage(message, isSelf, originalMessage) {
-    const wasAtBottom = chatMessagesElement.scrollHeight - chatMessagesElement.clientHeight <= chatMessagesElement.scrollTop + 10;
+    console.log('appendChatMessage called with:', { message, isSelf, originalMessage });
     
-    // Try to parse player message from the chat line
-    let playerName = "";
-    let playerText = "";
-    
-    // Try to extract player name and message
-    const playerMatch = message.match(/\[([^\]]+)\] ([^:]+): \[Talk\] (.*)/);
-    if (playerMatch) {
-        playerName = playerMatch[2];
-        playerText = playerMatch[3];
-    } else {
-        // Fallback pattern
-        const simpleTalkMatch = message.match(/([^:]+): \[Talk\] (.*)/);
-        if (simpleTalkMatch) {
-            playerName = simpleTalkMatch[1];
-            playerText = simpleTalkMatch[2];
-        }
+    // Get the chat container element (again, to be sure)
+    const chatContainer = document.getElementById('chat-messages');
+    if (!chatContainer) {
+        console.error('Chat container not found!');
+        return null;
     }
+    
+    // Force clear any "waiting for messages" placeholder
+    const waitingMsg = chatContainer.querySelector('.text-muted');
+    if (waitingMsg) {
+        console.log('Clearing waiting message placeholder');
+        chatContainer.innerHTML = '';
+    }
+    
+    const wasAtBottom = chatContainer.scrollHeight - chatContainer.clientHeight <= chatContainer.scrollTop + 10;
     
     // Create message element
     const messageElement = document.createElement('div');
     messageElement.className = `message ${isSelf ? 'message-self' : 'message-other'}`;
     
-    // If this is a player message (not the character's message), make it clickable
-    if (!isSelf && playerName && playerText) {
-        messageElement.classList.add('selectable-message');
-        
-        // Store the message data for use when selected
-        const messageData = {
-            playerName: playerName,
-            text: playerText,
-            fullMessage: message
-        };
-        
-        // Make message clickable
-        messageElement.addEventListener('click', function() {
-            // Deselect any previously selected message
-            document.querySelectorAll('.message.selected').forEach(el => {
-                el.classList.remove('selected');
-            });
-            
-            // Mark this message as selected
-            messageElement.classList.add('selected');
-            
-            // Store the selected message
-            selectedMessage = messageData;
-            
-            // Update the display of the selected message
-            incomingMessageElement.innerHTML = `<strong>${playerName}:</strong> ${playerText}`;
-            
-            // Show a "message selected" indicator
-            const selectedBadge = document.createElement('span');
-            selectedBadge.className = 'badge bg-primary ms-2';
-            selectedBadge.textContent = 'Selected';
-            incomingMessageElement.appendChild(selectedBadge);
-            
-            // Clear any previous responses when selecting a new message
-            responseOptionsElement.innerHTML = '<p class="text-center text-muted">Click "Generate Response" to create AI replies for this message</p>';
-            
-            // Enable the generate button
-            generateResponseButton.disabled = false;
-        });
-    }
-    
-    messageElement.textContent = message;
+    // Set message content - DON'T use textContent as it removes HTML formatting
+    messageElement.innerHTML = message;
     
     // Add timestamp
     const timestampElement = document.createElement('div');
@@ -413,18 +511,88 @@ function appendChatMessage(message, isSelf, originalMessage) {
     timestampElement.textContent = timestamp;
     messageElement.appendChild(timestampElement);
     
-    // Clear the "waiting for messages" text if it's there
-    if (chatMessagesElement.querySelector('.text-muted')) {
-        chatMessagesElement.innerHTML = '';
+    // Add a debug indicator so we can verify the message was actually added
+    const debugIndicator = document.createElement('span');
+    debugIndicator.style.fontSize = '8px';
+    debugIndicator.style.color = '#999';
+    debugIndicator.textContent = ' [msg-id:' + Math.floor(Math.random() * 1000) + ']';
+    timestampElement.appendChild(debugIndicator);
+    
+    // Check for clickable message (player message)
+    try {
+        // Make all non-self messages clickable, regardless of whether they have originalMessage
+        if (!isSelf) {
+            messageElement.classList.add('selectable-message');
+            messageElement.style.cursor = 'pointer'; // Add pointer cursor to indicate clickability
+            
+            // Extract name from formatted message or use a fallback
+            let playerName = "Player";
+            let playerText = originalMessage || message;
+            
+            // Try to extract player name from HTML content
+            const strongMatch = message.match(/<strong>(.*?)<\/strong>/);
+            if (strongMatch && strongMatch[1]) {
+                playerName = strongMatch[1].replace(':', '');
+            }
+            
+            // Try to extract text content from the message
+            let textContent = message;
+            if (strongMatch) {
+                // Remove the strong tag and get the rest of the message
+                textContent = message.replace(/<strong>.*?<\/strong>:?\s*/, '');
+            }
+            
+            // Store that data
+            const messageData = {
+                playerName: playerName,
+                text: originalMessage || textContent,
+                fullMessage: message
+            };
+            
+            // Make message clickable
+            messageElement.addEventListener('click', function() {
+                console.log('Message clicked:', messageData);
+                
+                // Deselect any previously selected message
+                document.querySelectorAll('.message.selected').forEach(el => {
+                    el.classList.remove('selected');
+                });
+                
+                // Mark this message as selected
+                messageElement.classList.add('selected');
+                
+                // Store the selected message
+                selectedMessage = messageData;
+                
+                // Update the display of the selected message
+                incomingMessageElement.innerHTML = `<strong>${playerName}:</strong> ${messageData.text}`;
+                
+                // Show a "message selected" indicator
+                const selectedBadge = document.createElement('span');
+                selectedBadge.className = 'badge bg-primary ms-2';
+                selectedBadge.textContent = 'Selected';
+                incomingMessageElement.appendChild(selectedBadge);
+                
+                // Clear any previous responses when selecting a new message
+                responseOptionsElement.innerHTML = '<p class="text-center text-muted">Click "Generate Response" to create AI replies for this message</p>';
+                
+                // Enable the generate button
+                generateResponseButton.disabled = false;
+            });
+        }
+    } catch (error) {
+        console.error('Error setting up clickable message:', error);
     }
     
     // Append the message
-    chatMessagesElement.appendChild(messageElement);
+    chatContainer.appendChild(messageElement);
+    console.log('Message element added to DOM', messageElement);
     
-    // Auto-scroll if the user was already at the bottom
-    if (wasAtBottom) {
-        chatMessagesElement.scrollTop = chatMessagesElement.scrollHeight;
-    }
+    // Force auto-scroll
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+    
+    // Return the element for debugging
+    return messageElement;
 }
 
 function displayResponseOptions(responses) {

@@ -1,0 +1,22 @@
+[
+  {
+    "timestamp": "2025-05-19 02:10:51",
+    "sender": "ai",
+    "message": "[AI Option 1] Rest is a luxury, but it can also be a trap for the unwary."
+  },
+  {
+    "timestamp": "2025-05-19 02:10:51",
+    "sender": "ai",
+    "message": "[AI Option 2] Fatigue is a thief that steals our clarity. Perhaps a moment of reflection will restore your vigor."
+  },
+  {
+    "timestamp": "2025-05-19 02:10:51",
+    "sender": "ai",
+    "message": "[AI Option 3] Ah, the weary traveler finds solace in the embrace of shadows. Yet remember, even in weariness, the night holds secrets that may yet awaken your spirit anew."
+  },
+  {
+    "timestamp": "2025-05-19 02:10:51",
+    "sender": "system",
+    "message": "Request to respond to Player: \"I'm getting tired now... \""
+  }
+]

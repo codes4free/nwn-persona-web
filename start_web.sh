@@ -8,6 +8,13 @@ if [ -f .env ]; then
     export $(grep -v '^#' .env | xargs)
 fi
 
+# Check for config.ini
+if [ -f config.ini ]; then
+    echo "Using configuration from config.ini"
+else
+    echo "WARNING: config.ini not found, using default settings"
+fi
+
 # Check for Python and required packages
 if ! command -v python3 &> /dev/null; then
     echo "Python 3 is required but not installed. Please install Python 3."
@@ -22,10 +29,12 @@ if [ ! -f ".packages_installed" ]; then
 fi
 
 # Create necessary directories
-mkdir -p character_profiles chat_history static/css static/js templates
+mkdir -p character_profiles chat_history static/css static/js templates feedback_data
 
 # Start the application
 echo "Starting NWNX:EE Chatbot Web Application..."
+echo "The server is configured to receive logs ONLY via WebSocket/API"
+echo "No local log file monitoring is active"
 python3 app.py
 
 # Keep the script running
