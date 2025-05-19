@@ -11,6 +11,7 @@ A Python-based chatbot for Neverwinter Nights Enhanced Edition that monitors cha
 - Character-specific chat history logging
 - Character persona profiles to maintain character personalities
 - Color-coded message display
+- Windows log client for remote monitoring support
 
 ## Prerequisites
 
@@ -44,6 +45,16 @@ A Python-based chatbot for Neverwinter Nights Enhanced Edition that monitors cha
    ```
    export DISPLAY=:0
    ```
+   
+## Remote Windows Client
+
+For players who can't access the chatbot server directly from their Windows machines, we provide a Windows client that can:
+
+1. Monitor NWN log files on a Windows machine
+2. Send logs to a remote server via HTTP or WebSocket
+3. Allow the server to process chat logs as if they were local
+
+See the `README-windows-client.md` file for installation and setup instructions.
 
 ## Usage
 
@@ -123,6 +134,19 @@ Chat history is automatically saved to timestamped files in character-specific f
 - [SELF] prefix for your own messages
 - Complete message text
 
+## Web Interface
+
+To start the web interface:
+
+```
+./start_web.sh
+```
+
+This will start a Flask web server that allows you to:
+- View chat logs for each character
+- Generate AI replies through the browser
+- Submit feedback on AI responses 
+
 ## Troubleshooting
 
 1. **Log file not found**: Make sure the Windows path is correctly mounted in WSL
@@ -137,3 +161,8 @@ Chat history is automatically saved to timestamped files in character-specific f
 4. **Chat history errors**: Make sure you have write permissions in the directory where the script is running
 
 5. **Character not detected**: Make sure your account name in the configuration matches your in-game account 
+
+6. **Windows client issues**:
+   - Make sure the server URL is correct
+   - Check that the log file path is correct
+   - See `README-windows-client.md` for specific troubleshooting 

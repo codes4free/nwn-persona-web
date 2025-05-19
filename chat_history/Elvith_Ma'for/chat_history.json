@@ -958,5 +958,170 @@
     "timestamp": "2025-05-18 02:45:49",
     "sender": "system",
     "message": "Request to respond to Breichiawl Gilfaethwy: <c\u0001\u0001>[Ask to see his wares]</c>"
+  },
+  {
+    "timestamp": "2025-05-18 23:41:41",
+    "sender": "system",
+    "message": "Request to respond to test player: <c\u00a1\u00a1\u00b1>[Vas]</c> \"TEST20\""
+  },
+  {
+    "timestamp": "2025-05-18 23:41:45",
+    "sender": "system",
+    "message": "Request to respond to test player: <c\u00a1\u00a1\u00b1>[Vas]</c> \"TEST20\""
+  },
+  {
+    "timestamp": "2025-05-18 23:43:28",
+    "sender": "system",
+    "message": "Request to respond to test player: <c\u00a1\u00a1\u00b1>[Vas]</c> \"TEST20\""
+  },
+  {
+    "timestamp": "2025-05-18 23:52:01",
+    "sender": "ai",
+    "message": "[AI Option 1] *Elvith raises an eyebrow.* \"A test? How delightfully mundane.\""
+  },
+  {
+    "timestamp": "2025-05-18 23:52:01",
+    "sender": "ai",
+    "message": "[AI Option 2] *Elvith regards the message with a hint of amusement.* \"Testing is a necessary ritual, akin to sharpening one's blade before battle.\""
+  },
+  {
+    "timestamp": "2025-05-18 23:52:01",
+    "sender": "ai",
+    "message": "[AI Option 3] *Elvith leans back, a playful glint in his eyes.* \"Ah, the essence of inquiry! Even in a realm of shadows, the pursuit of understanding remains ever vital.\""
+  },
+  {
+    "timestamp": "2025-05-18 23:52:01",
+    "sender": "system",
+    "message": "Request to respond to Test Character: This is a test message from the debug endpoint"
+  },
+  {
+    "timestamp": "2025-05-19 00:02:25",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] <c\u0001\u0001>[Ask for passage through the mists]</c>"
+  },
+  {
+    "timestamp": "2025-05-19 00:02:26",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] <c\u0001\u0001>[Agree]</c>"
+  },
+  {
+    "timestamp": "2025-05-19 00:02:27",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] <c\u0001\u0001>[Barovia]</c>"
+  },
+  {
+    "timestamp": "2025-05-19 00:02:28",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] <c\u0001\u0001>[Confirm]</c>"
+  },
+  {
+    "timestamp": "2025-05-19 00:02:33",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] <c\u0001\u0001>[Ring the bell]</c>"
+  },
+  {
+    "timestamp": "2025-05-19 00:07:52",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] \"Hello.. \""
+  },
+  {
+    "timestamp": "2025-05-19 00:10:44",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] \"Hello Dear.. \""
+  },
+  {
+    "timestamp": "2025-05-19 00:11:22",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"eu ja nasci pronto\" \u2192 As character: \"*Elvith smirks, a knowing glint in his eyes as he twirls a strand of hair.* \"Ah, one could say I emerged from the stars fully prepared for the dance of life. Ready to seize every opportunity that the cosmos offers.\"\""
+  },
+  {
+    "timestamp": "2025-05-19 00:11:25",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] Processing chat message: [Fullgazz] Marvin'ael Starbreeze: [Talk] *he leans..."
+  },
+  {
+    "timestamp": "2025-05-19 00:11:41",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Tell]  foda"
+  },
+  {
+    "timestamp": "2025-05-19 00:11:58",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] \"can we move?\""
+  },
+  {
+    "timestamp": "2025-05-19 00:12:26",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"elvith se apresenta aos outros\" \u2192 As character: \"*Elvith straightens his posture, a glimmer of mischief in his eyes.* \"Allow me to introduce myself to all present-Elvith Ma'for, at your service.\"\""
+  },
+  {
+    "timestamp": "2025-05-19 00:13:15",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] <c\u0001\u0001>[Rest]</c>"
+  },
+  {
+    "timestamp": "2025-05-19 00:13:15",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] Sit and relax a bit"
+  },
+  {
+    "timestamp": "2025-05-19 00:13:15",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] You sit down and let your belongings lie on the ground next to you."
+  },
+  {
+    "timestamp": "2025-05-19 00:13:16",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] Make yourself comfortable"
+  },
+  {
+    "timestamp": "2025-05-19 00:13:24",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Tell]  rest"
+  },
+  {
+    "timestamp": "2025-05-19 00:13:52",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] *Elvith smirks, a knowing glint in his eyes as he twirls a strand of hair.* \"Ah, one could say I emerged from the stars fully prepared for the dance of life. Ready to seize every opportunity that the cosmos offers.\""
+  },
+  {
+    "timestamp": "2025-05-19 00:15:46",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"vendo que temos as mesmas habilidades, podemos mata-los mais rapido sem juntar muitos\" \u2192 As character: \"*Elvith's gaze sharpens, a flicker of intrigue lighting his eyes as he considers the proposition.*\n\n\"Indeed, if our skills align, we can dispatch them swiftly and efficiently, minimizing unnecessary attention. Let us act with precision.\"\""
+  },
+  {
+    "timestamp": "2025-05-19 00:15:57",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] *Elvith's gaze sharpens, a flicker of intrigue lighting his eyes as he considers the proposition.* \"Indeed, if our skills align, we can dispatch them swiftly and efficiently, minimizing unnecessary attention. Let us act with precision.\""
+  },
+  {
+    "timestamp": "2025-05-19 00:16:54",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"entendeu agora?\" \u2192 As character: \"*Elvith tilts his head slightly, a knowing smile gracing his lips as he considers the words spoken.* \"Ah, I see you seek clarity now. Indeed, understanding has dawned upon us.\"\""
+  },
+  {
+    "timestamp": "2025-05-19 00:17:02",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] *Elvith tilts his head slightly, a knowing smile gracing his lips as he considers the words spoken.* \"Ah, I see you seek clarity now. Indeed, understanding has dawned upon us.\""
+  },
+  {
+    "timestamp": "2025-05-19 00:18:03",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] \"Maybe you're right.. if is adventure what you seek.. i confess, you will have none with me."
+  },
+  {
+    "timestamp": "2025-05-19 00:18:19",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"au revoir\" \u2192 As character: \"*Elvith tilts his head slightly, a knowing smile gracing his lips as he acknowledges the sentiment.* \"Until we meet again, may the stars guide your path.\"\""
+  },
+  {
+    "timestamp": "2025-05-19 00:18:27",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] *Elvith tilts his head slightly, a knowing smile gracing his lips as he acknowledges the sentiment.* \"Until we meet again, may the stars guide your path.\""
+  },
+  {
+    "timestamp": "2025-05-19 00:18:57",
+    "sender": "self",
+    "message": "[Fullgazz] Elvith Ma'for: [Talk] <c\u0496>//ill drain your XP anyway</c>"
   }
 ]

@@ -10,6 +10,7 @@ from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
 import openai
+import character_manager  # Import the character manager module
 
 # Load environment variables
 load_dotenv()
@@ -18,7 +19,7 @@ load_dotenv()
 CHARACTER_PROFILES_DIR = "character_profiles"
 CHAT_HISTORY_DIR = "chat_history"
 FEEDBACK_DIR = "feedback_data"
-LOG_FILE_PATH = os.getenv("LOG_FILE_PATH", "/mnt/f/OneDrive/Documentos/Neverwinter Nights/logs/nwclientLog1.txt")
+# No local log file path - we only receive logs via WebSocket/API
 USER_ACCOUNT = os.getenv("USER_ACCOUNT", "Fullgazz")
 SYSTEM_PATTERN = r"\[Talk\] (?:What would you like to do\?|Please choose section:|<c>\[.*?\]</c>|Crafting Menu|Back|Cancel)"
 
@@ -37,7 +38,7 @@ openai.api_key = api_key
 
 # Global variables
 active_character = None
-character_profiles = {}
+character_profiles = {}  # Will be loaded from character_manager
 chat_monitor_thread = None
 running = True
 last_position = 0
@@ -48,22 +49,6 @@ os.makedirs(CHARACTER_PROFILES_DIR, exist_ok=True)
 os.makedirs(FEEDBACK_DIR, exist_ok=True)
 
 # Load character profiles
-def load_character_profiles():
-    """Load all character profiles"""
-    global character_profiles
-    try:
-        for profile_file in os.listdir(CHARACTER_PROFILES_DIR):
-            if profile_file.endswith('.json'):
-                try:
-                    with open(os.path.join(CHARACTER_PROFILES_DIR, profile_file), 'r', encoding='utf-8') as f:
-                        profile = json.load(f)
-                        character_profiles[profile['name']] = profile
-                        print(f"Loaded profile for {profile['name']}")
-                except Exception as e:
-                    print(f"Error loading profile {profile_file}: {e}")
-    except Exception as e:
-        print(f"Error loading character profiles: {e}")
-
 # Detect character from log line
 def detect_character(line):
     """Detect which character is active based on the log line"""
@@ -130,60 +115,22 @@ def save_to_history(character_name, message, sender, timestamp=None):
 
 # Chat monitor function
 def monitor_chat():
-    """Monitor the NWN chat log file for new messages"""
-    global last_position, running
+    """Monitor for new messages (receiving via WebSocket/API only)"""
+    global running
     
-    print(f"Starting chat monitor for {LOG_FILE_PATH}")
+    print("Starting chat monitor - waiting for logs via WebSocket/API")
+    print("No local file monitoring - all logs come from remote clients")
     
-    # Wait for the log file to exist
-    while running and not os.path.exists(LOG_FILE_PATH):
-        print(f"Waiting for log file to be created at: {LOG_FILE_PATH}")
-        print(f"Current directory: {os.getcwd()}")
-        print(f"File exists: {os.path.exists(LOG_FILE_PATH)}")
-        try:
-            # Check parent directory
-            parent_dir = os.path.dirname(LOG_FILE_PATH)
-            print(f"Parent directory exists: {os.path.exists(parent_dir)}")
-            if os.path.exists(parent_dir):
-                print(f"Contents of parent directory: {os.listdir(parent_dir)}")
-        except Exception as e:
-            print(f"Error checking parent directory: {e}")
-        time.sleep(5)
-    
-    # Get the initial file size
-    if os.path.exists(LOG_FILE_PATH):
-        last_position = os.path.getsize(LOG_FILE_PATH)
-        print(f"Log file found! Initial size: {last_position} bytes")
-    
+    # Just keep the thread alive to receive WebSocket messages
     while running:
-        try:
-            # Check if file exists and has been modified
-            if os.path.exists(LOG_FILE_PATH):
-                file_size = os.path.getsize(LOG_FILE_PATH)
-                
-                if file_size > last_position:
-                    print(f"Log file changed: {last_position} -> {file_size} bytes")
-                    # Read only the new data
-                    with open(LOG_FILE_PATH, 'r', encoding='utf-8', errors='ignore') as file:
-                        file.seek(last_position)
-                        new_data = file.read()
-                        last_position = file.tell()
-                    
-                    # Process new messages
-                    if new_data:
-                        print(f"New data read: {len(new_data)} bytes")
-                        process_new_messages(new_data)
-                        
-            time.sleep(0.5)
-            
-        except Exception as e:
-            print(f"Error reading log file: {e}")
-            time.sleep(5)
+        time.sleep(5)  # Just sleep, actual processing happens in socket handlers
 
 # Process new messages
 def process_new_messages(data):
     """Process new messages from the log file"""
     lines = data.strip().split('\n')
+    
+    print(f"Processing {len(lines)} new message lines")
     
     for line in lines:
         # Skip empty lines
@@ -192,6 +139,7 @@ def process_new_messages(data):
             
         # Skip lines with <c> tags - these are item/action notifications, not chat
         if "<c>" in line and "</c>" in line:
+            print(f"Skipping system notification: {line[:30]}...")
             continue
             
         # Detect which character is active
@@ -205,7 +153,10 @@ def process_new_messages(data):
         
         if is_system_message:
             # This is a system message, we'll ignore it
+            print(f"Skipping system menu message: {line[:30]}...")
             continue
+            
+        print(f"Processing chat message: {line[:50]}...")
         
         # Save the message
         if character_name:
@@ -226,10 +177,25 @@ def process_new_messages(data):
                     name, player_message = match.groups()
                     original_message = player_message
         
+        # Format the message for display
+        formatted_message = line
+        # Check if this has Talk format, if so, make it more readable
+        talk_match = re.match(r"\[([^\]]+)\] ([^:]+): \[Talk\] (.*)", line)
+        if talk_match:
+            account, speaker, text = talk_match.groups()
+            formatted_message = f"<strong>{speaker}:</strong> {text}"
+        else:
+            simple_match = re.match(r"([^:]+): \[Talk\] (.*)", line)
+            if simple_match:
+                speaker, text = simple_match.groups()
+                formatted_message = f"<strong>{speaker}:</strong> {text}"
+        
         # Emit the message to websocket clients
+        print(f"Broadcasting message to all clients via WebSocket")
         socketio.emit('new_message', {
             'character': character_name,
-            'message': line,
+            'message': formatted_message,
+            'raw_message': line,
             'is_own': is_own_message,
             'original_message': original_message
         })
@@ -240,6 +206,7 @@ def process_new_messages(data):
             match = re.match(r"\[([^\]]+)\] ([^:]+): \[Talk\] (.*)", line)
             if match:
                 account, char_name, player_message = match.groups()
+                print(f"Broadcasting player message from {char_name} to all clients")
                 socketio.emit('player_message', {
                     'character': active_character,
                     'player_name': char_name,
@@ -250,6 +217,7 @@ def process_new_messages(data):
                 match = re.match(r"([^:]+): \[Talk\] (.*)", line)
                 if match:
                     name, player_message = match.groups()
+                    print(f"Broadcasting player message from {name} to all clients")
                     socketio.emit('player_message', {
                         'character': active_character,
                         'player_name': name,
@@ -265,12 +233,16 @@ def generate_in_character_reply(character_name, player_message, num_alternatives
     persona = character_profiles[character_name]
     
     # Set character-specific parameters
-    temperature = 0.3  # Default temperature
+    temperature = persona.get("temperature", 0.7)  # Get temperature from profile or use 0.7 as default
+    
+    # Note: Special case handling for Elvith is maintained but temperature modifier is reduced
+    # as the user can now directly control temperature via the UI
     creativity_instruction = ""
     
     # Check if this is Elvith - if so, reduce creativity/poetry
     if "Elvith" in character_name:
-        temperature = 0.6  # Lower temperature for Elvith (30% reduction from 0.9)
+        # Apply a small reduction to the user-defined temperature
+        temperature = max(0.1, temperature * 0.9)  # Reduce by 10% but not below 0.1
         creativity_instruction = (
             f"\nIMPORTANT NOTE FOR ELVITH MA'FOR: Reduce poetic and flowery language by 30%. "
             f"Be more direct and straightforward in conversations. "
@@ -342,12 +314,13 @@ def translate_custom_message(character_name, portuguese_text):
     persona = character_profiles[character_name]
     
     # Set character-specific parameters
-    temperature = 0.7  # Default temperature
+    temperature = persona.get("temperature", 0.7)  # Get temperature from profile or use 0.7 as default
     creativity_instruction = ""
     
     # Check if this is Elvith - if so, reduce creativity/poetry
     if "Elvith" in character_name:
-        temperature = 0.5  # Lower temperature for Elvith
+        # Apply a small reduction to the user-defined temperature
+        temperature = max(0.1, temperature * 0.9)  # Reduce by 10% but not below 0.1
         creativity_instruction = (
             f"\nIMPORTANT NOTE FOR ELVITH MA'FOR: Reduce poetic and flowery language by 30%. "
             f"Be more direct and straightforward in translations. "
@@ -462,7 +435,12 @@ def index():
     """Render the main page"""
     return render_template('index.html')
 
-@app.route('/api/characters')
+@app.route('/create-character')
+def create_character_form():
+    """Render the character creation form"""
+    return render_template('create_character.html')
+
+@app.route('/api/characters', methods=['GET'])
 def get_characters():
     """Return list of available characters"""
     return jsonify({
@@ -470,31 +448,76 @@ def get_characters():
         'characters': list(character_profiles.keys())
     })
 
-@app.route('/api/character/<name>')
-def get_character(name):
-    """Return character profile"""
-    if name in character_profiles:
-        return jsonify(character_profiles[name])
-    return jsonify({'error': 'Character not found'}), 404
-
-@app.route('/api/character/<name>/activate', methods=['POST'])
-def set_active_character(name):
-    """Set a character as the active character"""
-    global active_character
+@app.route('/api/characters', methods=['POST'])
+def create_character():
+    """Create a new character profile"""
+    data = request.json
     
+    # Validate required fields
+    if not data or 'name' not in data:
+        return jsonify({'error': 'Character name is required'}), 400
+    
+    # Save character profile
+    result = character_manager.save_profile(data)
+    
+    if 'error' in result:
+        return jsonify(result), 400
+    
+    # Reload all character profiles
+    global character_profiles
+    character_profiles = character_manager.load_all_profiles()
+    
+    return jsonify(result)
+
+@app.route('/api/characters/<name>', methods=['DELETE'])
+def delete_character(name):
+    """Delete a character profile"""
+    global active_character, character_profiles
+    
+    # Check if character exists
     if name not in character_profiles:
         return jsonify({'error': 'Character not found'}), 404
     
-    active_character = name
-    print(f"Manually activated character: {name}")
+    # If this is the active character, clear it
+    if active_character == name:
+        active_character = None
+    
+    # Delete the character
+    result = character_manager.delete_profile(name)
+    
+    if 'error' in result:
+        return jsonify(result), 400
+    
+    # Reload all character profiles
+    character_profiles = character_manager.load_all_profiles()
+    
+    return jsonify(result)
+
+@app.route('/api/character/<n>')
+def get_character(n):
+    """Return character profile"""
+    if n in character_profiles:
+        return jsonify(character_profiles[n])
+    return jsonify({'error': 'Character not found'}), 404
+
+@app.route('/api/character/<n>/activate', methods=['POST'])
+def set_active_character(n):
+    """Set a character as the active character"""
+    global active_character
+    
+    if n not in character_profiles:
+        return jsonify({'error': 'Character not found'}), 404
+    
+    active_character = n
+    print(f"Manually activated character: {n}")
     
     # Set up chat history for this character
-    setup_chat_history(name)
+    setup_chat_history(n)
     
     # Emit the character change to all clients
-    socketio.emit('character_change', {'character': name})
+    socketio.emit('character_change', {'character': n})
     
-    return jsonify({'success': True, 'active_character': name})
+    return jsonify({'success': True, 'active_character': n})
 
 @app.route('/api/history/<character>')
 def get_history(character):
@@ -516,39 +539,175 @@ def get_history(character):
 def debug_info():
     """Return debug information"""
     debug_data = {
-        'log_file_path': LOG_FILE_PATH,
-        'log_file_exists': os.path.exists(LOG_FILE_PATH),
         'current_directory': os.getcwd(),
         'active_character': active_character,
         'characters_loaded': list(character_profiles.keys()),
-        'monitor_thread_alive': chat_monitor_thread.is_alive() if chat_monitor_thread else False
+        'monitor_thread_alive': chat_monitor_thread.is_alive() if chat_monitor_thread else False,
+        'socketio_initialized': socketio is not None,
+        'openai_key_available': api_key is not None
     }
     
-    # Try to get file info if exists
-    if os.path.exists(LOG_FILE_PATH):
-        debug_data['log_file_size'] = os.path.getsize(LOG_FILE_PATH)
-        debug_data['log_file_readable'] = os.access(LOG_FILE_PATH, os.R_OK)
-        debug_data['last_position'] = last_position
-        
-        try:
-            # Try to read the last few lines
-            with open(LOG_FILE_PATH, 'r', encoding='utf-8', errors='ignore') as f:
-                f.seek(max(0, os.path.getsize(LOG_FILE_PATH) - 500))
-                debug_data['log_file_tail'] = f.read(500)
-        except Exception as e:
-            debug_data['log_file_error'] = str(e)
-    
-    # Parent directory info
+    # Directory info
     try:
-        parent_dir = os.path.dirname(LOG_FILE_PATH)
-        debug_data['parent_dir'] = parent_dir
-        debug_data['parent_dir_exists'] = os.path.exists(parent_dir)
-        if os.path.exists(parent_dir):
-            debug_data['parent_dir_contents'] = os.listdir(parent_dir)
+        # Get character_profiles directory info
+        debug_data['character_profiles_dir'] = CHARACTER_PROFILES_DIR
+        debug_data['character_profiles_exists'] = os.path.exists(CHARACTER_PROFILES_DIR)
+        if os.path.exists(CHARACTER_PROFILES_DIR):
+            debug_data['character_profiles_contents'] = os.listdir(CHARACTER_PROFILES_DIR)
+            
+        # Get chat_history directory info
+        debug_data['chat_history_dir'] = CHAT_HISTORY_DIR
+        debug_data['chat_history_exists'] = os.path.exists(CHAT_HISTORY_DIR)
+        if os.path.exists(CHAT_HISTORY_DIR):
+            debug_data['chat_history_contents'] = os.listdir(CHAT_HISTORY_DIR)
     except Exception as e:
-        debug_data['parent_dir_error'] = str(e)
+        debug_data['dir_error'] = str(e)
     
     return jsonify(debug_data)
+
+@app.route('/api/debug/send_test_message')
+def send_test_message():
+    """Send a test message to all connected clients"""
+    test_message = "[D6lab] Test Character: [Talk] This is a test message from the debug endpoint"
+    
+    print(f"Sending test message to all clients: {test_message}")
+    
+    try:
+        # Method 1: Process through normal message handling
+        process_new_messages(test_message)
+        
+        # Method 2: Send direct system message for validation
+        socketio.emit('system_message', {
+            'message': f"Debug test at {datetime.datetime.now().strftime('%H:%M:%S')}",
+            'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+        
+        # Method 3: Direct new_message event to bypass processing
+        formatted_message = "<strong>Test Character:</strong> Direct test message"
+        socketio.emit('new_message', {
+            'character': 'Test Character',
+            'message': formatted_message,
+            'raw_message': test_message,
+            'is_own': False,
+            'original_message': "Direct test message"
+        })
+        
+        return jsonify({
+            'success': True,
+            'message': 'Test message sent using multiple methods'
+        })
+    except Exception as e:
+        print(f"Error sending test message: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/debug')
+def debug_page():
+    """Render the debug page for testing WebSocket connection"""
+    return render_template('debug.html')
+
+@app.route('/api/debug/simple_test')
+def simple_test_message():
+    """Send a simple formatted message to all clients"""
+    try:
+        # Send the simplest possible message directly to clients
+        socketio.emit('new_message', {
+            'character': 'Debug',
+            'message': '<strong>Test:</strong> Simple message from server',
+            'raw_message': 'Test: Simple message from server',
+            'is_own': False,
+            'original_message': 'Simple message from server'
+        })
+        
+        print("Sent simple test message via new_message event")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Simple test message sent'
+        })
+    except Exception as e:
+        print(f"Error sending simple test message: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/debug/direct_test')
+def direct_test_message():
+    """Send a direct test message bypassing all processing logic"""
+    try:
+        message_content = "<strong>Direct Test:</strong> This is a direct test message at " + datetime.datetime.now().strftime("%H:%M:%S")
+        
+        print(f"Sending direct test message to all clients: {message_content}")
+        
+        # Send the simplest possible message directly to clients
+        socketio.emit('new_message', {
+            'character': 'Debug',
+            'message': message_content,
+            'raw_message': 'Direct test message',
+            'is_own': False,
+            'original_message': 'Direct test message content'
+        })
+        
+        # Also try a system message which may have different handling
+        socketio.emit('system_message', {
+            'message': f"System test at {datetime.datetime.now().strftime('%H:%M:%S')}",
+            'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+        
+        print("Sent direct test message via new_message and system_message events")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Direct test messages sent via both channels'
+        })
+    except Exception as e:
+        print(f"Error sending direct test message: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/debug/test_player_message')
+def test_player_message():
+    """Send a test player message that can be selected for AI response"""
+    try:
+        # Create a test player message
+        player_name = "Test Player"
+        player_message = "Hello! This is a test message. You should be able to select this for an AI response."
+        raw_message = f"[Test Account] {player_name}: [Talk] {player_message}"
+        formatted_message = f"<strong>{player_name}:</strong> {player_message}"
+        
+        print(f"Sending test player message from {player_name}")
+        
+        # Send formatted message to chat
+        socketio.emit('new_message', {
+            'character': 'Debug',
+            'message': formatted_message,
+            'raw_message': raw_message,
+            'is_own': False,
+            'original_message': player_message
+        })
+        
+        # Send player_message event for response generation
+        socketio.emit('player_message', {
+            'character': active_character,
+            'player_name': player_name,
+            'message': player_message
+        })
+        
+        return jsonify({
+            'success': True,
+            'message': 'Test player message sent'
+        })
+    except Exception as e:
+        print(f"Error sending test player message: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 # Socket.IO events
 @socketio.on('connect')
@@ -581,7 +740,7 @@ def handle_activate_character(data):
     setup_chat_history(character_name)
     
     # Emit the character change to all clients
-    emit('character_change', {'character': character_name}, broadcast=True)
+    emit('character_change', {'character': character_name})
     emit('activation_result', {'success': True, 'active_character': character_name})
 
 @socketio.on('request_ai_reply')
@@ -652,10 +811,11 @@ def manual_respond():
 
 # Start chat monitor thread
 def start_monitor():
-    global chat_monitor_thread, running
+    global chat_monitor_thread, running, character_profiles
     
-    # Load character profiles
-    load_character_profiles()
+    # Load character profiles from the manager module
+    character_profiles = character_manager.load_all_profiles()
+    print(f"Loaded {len(character_profiles)} character profiles")
     
     # Start the monitor thread
     running = True
@@ -797,10 +957,154 @@ def handle_feedback(data):
     result = save_feedback(character, message_data, response, rating, notes)
     emit('feedback_result', result)
 
+@app.route('/api/log_update', methods=['POST'])
+def receive_log_update():
+    """Handle log updates from remote clients"""
+    data = request.json
+    client = data.get('client', 'unknown')
+    lines = data.get('lines', [])
+    
+    if not lines:
+        return jsonify({'error': 'No log lines provided'}), 400
+    
+    print(f"Received {len(lines)} log lines from client: {client}")
+    
+    # Process each line as if it came from local log file
+    for line in lines:
+        process_new_messages(line + '\n')
+    
+    return jsonify({'success': True, 'processed': len(lines)})
+
+# Socket.IO endpoint for log updates
+@socketio.on('log_update')
+def handle_log_update(data):
+    """Handle log updates via WebSocket"""
+    client = data.get('client', 'unknown')
+    lines = data.get('lines', [])
+    
+    if not lines:
+        return
+    
+    print(f"Received {len(lines)} log lines via WebSocket from client: {client}")
+    print(f"Lines: {lines}")
+    
+    # Process each line
+    for line in lines:
+        process_new_messages(line + '\n')
+    
+    # Send confirmation back to the client that sent the logs
+    emit('log_update_result', {'success': True, 'processed': len(lines)})
+    
+    # Also broadcast a system message to all clients that logs were received
+    socketio.emit('system_message', {
+        'message': f"New logs received from client: {client}",
+        'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+
+# Load server configuration
+def load_server_config():
+    """Load server configuration from config.ini"""
+    host = '0.0.0.0'  # Default host
+    port = 5000       # Default port
+    
+    try:
+        import configparser
+        config = configparser.ConfigParser()
+        if os.path.exists('config.ini'):
+            config.read('config.ini')
+            if 'Server' in config:
+                if 'HOST' in config['Server']:
+                    host = config['Server']['HOST']
+                if 'PORT' in config['Server']:
+                    port = int(config['Server']['PORT'])
+            print(f"Server will bind to {host}:{port}")
+    except Exception as e:
+        print(f"Error loading server config: {e}")
+        print(f"Using default host:port {host}:{port}")
+    
+    return host, port
+
+@app.route('/edit-character')
+def edit_character_form():
+    """Render the character edit form"""
+    return render_template('edit_character.html')
+
+@app.route('/api/character/<n>/update', methods=['POST'])
+def update_character(n):
+    """Update an existing character profile"""
+    data = request.json
+    
+    # Validate required fields
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    # Ensure character exists
+    if n not in character_profiles:
+        return jsonify({'error': 'Character not found'}), 404
+    
+    # Update character profile
+    result = character_manager.update_profile(n, data)
+    
+    if 'error' in result:
+        return jsonify(result), 400
+    
+    # Reload all character profiles
+    character_profiles.update(character_manager.load_all_profiles())
+    
+    return jsonify(result)
+
+@app.route('/api/character/<n>/import-json', methods=['POST'])
+def import_json_profile(n):
+    """Import a character profile from JSON data"""
+    # Check if the character exists
+    if n not in character_profiles:
+        return jsonify({'error': 'Character not found'}), 404
+
+    # Check if there's a file in the request
+    if 'json_file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+        
+    file = request.files['json_file']
+    
+    # Check if the file is empty
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+        
+    # Check if the file is a JSON file
+    if not file.filename.lower().endswith('.json'):
+        return jsonify({'error': 'File must be in JSON format'}), 400
+    
+    try:
+        # Read the file content
+        json_data = file.read().decode('utf-8')
+        
+        # Parse the JSON
+        data = json.loads(json_data)
+        
+        # Ensure the name matches the current character
+        data['name'] = n
+        
+        # Update the character profile
+        result = character_manager.update_profile(n, data)
+        
+        if 'error' in result:
+            return jsonify(result), 400
+            
+        # Reload character profiles
+        character_profiles.update(character_manager.load_all_profiles())
+        
+        return jsonify({'success': True, 'message': f"Profile for {n} updated from JSON file"})
+        
+    except json.JSONDecodeError:
+        return jsonify({'error': 'Invalid JSON format'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Error processing file: {str(e)}'}), 500
+
 # Main entry point
 if __name__ == "__main__":
     start_monitor()
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    host, port = load_server_config()
+    socketio.run(app, host=host, port=port, debug=True)
 else:
     # For gunicorn or other WSGI servers
     start_monitor() 

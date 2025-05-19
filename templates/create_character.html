@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Character Profile - NWNX:EE Chatbot</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .form-section {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .form-section h3 {
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+            color: #343a40;
+        }
+        .form-help {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-top: 0.25rem;
+        }
+        .dialogue-example {
+            background-color: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            position: relative;
+        }
+        .remove-dialogue {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            cursor: pointer;
+            color: #dc3545;
+        }
+        #form-preview {
+            position: sticky;
+            top: 20px;
+        }
+        .preview-content {
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 1rem;
+            background-color: #f1f1f1;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4 mb-5">
+        <div class="row">
+            <div class="col-12">
+                <h1 class="mb-4">Create Character Profile</h1>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    Create a new character profile for the AI to roleplay. Fill out the form below with as much detail as possible.
+                </div>
+                <div class="mb-3">
+                    <a href="/" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Back to Main Page</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <!-- Form Column -->
+            <div class="col-lg-8">
+                <form id="characterForm">
+                    <!-- Basic Info Section -->
+                    <div class="form-section">
+                        <h3>Basic Information</h3>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="name" class="form-label">Character Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="name" name="name" required>
+                                <div class="form-help">The character's full name</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="title" class="form-label">Title</label>
+                                <input type="text" class="form-control" id="title" name="title">
+                                <div class="form-help">An optional title for the character (e.g., "The Lion of Vallaki")</div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="race" class="form-label">Race <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="race" name="race" required>
+                                <div class="form-help">Character's race or species</div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="class" class="form-label">Class <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="class" name="class" required>
+                                <div class="form-help">Character's class or profession</div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="alignment" class="form-label">Alignment <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="alignment" name="alignment" required>
+                                <div class="form-help">Character's moral alignment (e.g., "Chaotic Neutral")</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Character Description Section -->
+                    <div class="form-section">
+                        <h3>Character Description</h3>
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Physical Description <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="description" name="description" rows="2" required></textarea>
+                            <div class="form-help">Short description of the character's physical appearance</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="appearance" class="form-label">Detailed Appearance <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="appearance" name="appearance" rows="3" required></textarea>
+                            <div class="form-help">Detailed description of how the character looks</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="background" class="form-label">Background Story <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="background" name="background" rows="5" required></textarea>
+                            <div class="form-help">The character's history and background</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Personality Section -->
+                    <div class="form-section">
+                        <h3>Personality & Traits</h3>
+                        <div class="mb-3">
+                            <label for="traits" class="form-label">Personality Traits <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="traits" name="traits" rows="3" required placeholder="Enter one trait per line, e.g.:
+Stoic
+Disciplined
+Loyal to comrades"></textarea>
+                            <div class="form-help">List the character's personality traits, one per line</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="mannerisms" class="form-label">Mannerisms</label>
+                            <textarea class="form-control" id="mannerisms" name="mannerisms" rows="3" placeholder="Enter one mannerism per line, e.g.:
+Runs a hand over his shaved head.
+Speaks with a deadpan expression, rarely smiles."></textarea>
+                            <div class="form-help">List the character's physical mannerisms, one per line</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Additional Notes</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="2"></textarea>
+                            <div class="form-help">Any additional personality notes or details</div>
+                        </div>
+                    </div>
+                    
+                    <!-- AI Behavior Section -->
+                    <div class="form-section">
+                        <h3>AI Roleplay Settings</h3>
+                        <div class="mb-3">
+                            <label for="roleplay_prompt" class="form-label">Roleplay Prompt</label>
+                            <textarea class="form-control" id="roleplay_prompt" name="roleplay_prompt" rows="4"></textarea>
+                            <div class="form-help">Instructions for how the AI should roleplay this character (core personality, speech patterns, etc.)</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="interaction_constraints" class="form-label">Interaction Constraints</label>
+                            <textarea class="form-control" id="interaction_constraints" name="interaction_constraints" rows="4" placeholder="Enter one constraint per line, e.g.:
+Always write character's speech in English, translating from Portuguese if needed.
+Enclose actions or thoughts in asterisks.
+Never break character or reveal game mechanics."></textarea>
+                            <div class="form-help">Rules or constraints for how the character should interact (one per line)</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dialogue Examples Section -->
+                    <div class="form-section">
+                        <h3>Dialogue Examples</h3>
+                        <p class="form-help mb-3">Add examples of how the character would respond to different situations</p>
+                        
+                        <div id="dialogue-examples-container">
+                            <!-- Dialogue examples will be added here -->
+                        </div>
+                        
+                        <button type="button" id="add-dialogue" class="btn btn-outline-primary">
+                            <i class="bi bi-plus-circle"></i> Add Dialogue Example
+                        </button>
+                    </div>
+                    
+                    <!-- Submit Section -->
+                    <div class="d-flex justify-content-between mt-4 mb-5">
+                        <a href="/" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary btn-lg">Save Character Profile</button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Preview Column -->
+            <div class="col-lg-4">
+                <div id="form-preview">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">JSON Preview</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <pre class="preview-content" id="json-preview">
+{
+    "name": "",
+    "title": "",
+    "race": "",
+    "class": "",
+    "alignment": "",
+    "description": "",
+    ...
+}
+                            </pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Dialogue Example Template (hidden) -->
+    <template id="dialogue-template">
+        <div class="dialogue-example">
+            <i class="bi bi-x-circle remove-dialogue"></i>
+            <div class="row mb-2">
+                <div class="col">
+                    <label class="form-label">Player's Message</label>
+                    <input type="text" class="form-control dialogue-player" placeholder="What the player might say to the character">
+                </div>
+            </div>
+            <div class="row mb-2">
+                <div class="col">
+                    <label class="form-label">Character's Action</label>
+                    <input type="text" class="form-control dialogue-action" placeholder="How the character physically reacts (without quotation marks)">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col">
+                    <label class="form-label">Character's Response</label>
+                    <input type="text" class="form-control dialogue-speech" placeholder="What the character would say in response (without quotation marks)">
+                </div>
+            </div>
+        </div>
+    </template>
+    
+    <!-- Notification Toast -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="notification-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <strong class="me-auto">Notification</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                Message here
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // DOM elements
+        const characterForm = document.getElementById('characterForm');
+        const jsonPreview = document.getElementById('json-preview');
+        const dialogueContainer = document.getElementById('dialogue-examples-container');
+        const addDialogueBtn = document.getElementById('add-dialogue');
+        const dialogueTemplate = document.getElementById('dialogue-template');
+        const notificationToast = document.getElementById('notification-toast');
+        
+        // Bootstrap Toast object
+        const toast = new bootstrap.Toast(notificationToast);
+        
+        // Add a dialogue example
+        function addDialogueExample() {
+            const dialogueExample = dialogueTemplate.content.cloneNode(true);
+            
+            // Add event listener to remove button
+            dialogueExample.querySelector('.remove-dialogue').addEventListener('click', function() {
+                this.closest('.dialogue-example').remove();
+                updateJsonPreview();
+            });
+            
+            // Add event listeners to inputs
+            dialogueExample.querySelectorAll('input').forEach(input => {
+                input.addEventListener('input', updateJsonPreview);
+            });
+            
+            dialogueContainer.appendChild(dialogueExample);
+            updateJsonPreview();
+        }
+        
+        // Update JSON preview
+        function updateJsonPreview() {
+            const formData = new FormData(characterForm);
+            const characterData = {
+                name: formData.get('name') || "",
+                title: formData.get('title') || "",
+                race: formData.get('race') || "",
+                class: formData.get('class') || "",
+                alignment: formData.get('alignment') || "",
+                description: formData.get('description') || "",
+                roleplay_prompt: formData.get('roleplay_prompt') || "",
+                background: formData.get('background') || "",
+                appearance: formData.get('appearance') || "",
+                notes: formData.get('notes') || ""
+            };
+            
+            // Process list fields
+            const processListField = (fieldName) => {
+                const fieldValue = formData.get(fieldName);
+                if (fieldValue) {
+                    return fieldValue.split('\n').filter(line => line.trim()).map(line => line.trim());
+                }
+                return [];
+            };
+            
+            characterData.traits = processListField('traits');
+            characterData.mannerisms = processListField('mannerisms');
+            characterData.interaction_constraints = processListField('interaction_constraints');
+            
+            // Process dialogue examples
+            characterData.dialogue_examples = [];
+            const dialogueExamples = dialogueContainer.querySelectorAll('.dialogue-example');
+            dialogueExamples.forEach(example => {
+                const playerMessage = example.querySelector('.dialogue-player').value;
+                const characterAction = example.querySelector('.dialogue-action').value;
+                const characterSpeech = example.querySelector('.dialogue-speech').value;
+                
+                if (playerMessage || characterAction || characterSpeech) {
+                    characterData.dialogue_examples.push({
+                        player: playerMessage,
+                        norfind_action: characterAction ? `*${characterAction}*` : "",
+                        norfind_speech: characterSpeech
+                    });
+                }
+            });
+            
+            // Update the preview
+            jsonPreview.textContent = JSON.stringify(characterData, null, 2);
+        }
+        
+        // Submit form
+        characterForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Get form data
+            const formData = new FormData(characterForm);
+            const characterData = {
+                name: formData.get('name'),
+                title: formData.get('title'),
+                race: formData.get('race'),
+                class: formData.get('class'),
+                alignment: formData.get('alignment'),
+                description: formData.get('description'),
+                roleplay_prompt: formData.get('roleplay_prompt'),
+                background: formData.get('background'),
+                appearance: formData.get('appearance'),
+                notes: formData.get('notes')
+            };
+            
+            // Process list fields
+            const processListField = (fieldName) => {
+                const fieldValue = formData.get(fieldName);
+                if (fieldValue) {
+                    return fieldValue.split('\n').filter(line => line.trim()).map(line => line.trim());
+                }
+                return [];
+            };
+            
+            characterData.traits = processListField('traits');
+            characterData.mannerisms = processListField('mannerisms');
+            characterData.interaction_constraints = processListField('interaction_constraints');
+            
+            // Process dialogue examples
+            characterData.dialogue_examples = [];
+            const dialogueExamples = dialogueContainer.querySelectorAll('.dialogue-example');
+            dialogueExamples.forEach(example => {
+                const playerMessage = example.querySelector('.dialogue-player').value;
+                const characterAction = example.querySelector('.dialogue-action').value;
+                const characterSpeech = example.querySelector('.dialogue-speech').value;
+                
+                if (playerMessage || characterAction || characterSpeech) {
+                    characterData.dialogue_examples.push({
+                        player: playerMessage,
+                        norfind_action: characterAction ? `*${characterAction}*` : "",
+                        norfind_speech: characterSpeech
+                    });
+                }
+            });
+            
+            // Send to server
+            fetch('/api/characters', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(characterData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    // Show error toast
+                    const toastBody = notificationToast.querySelector('.toast-body');
+                    toastBody.textContent = data.error;
+                    toastBody.classList.add('text-danger');
+                    toast.show();
+                } else {
+                    // Show success toast
+                    const toastBody = notificationToast.querySelector('.toast-body');
+                    toastBody.textContent = data.message || "Character profile saved successfully!";
+                    toastBody.classList.remove('text-danger');
+                    toast.show();
+                    
+                    // Redirect to home page after a short delay
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1500);
+                }
+            })
+            .catch(error => {
+                console.error('Error saving character profile:', error);
+                const toastBody = notificationToast.querySelector('.toast-body');
+                toastBody.textContent = "Error saving profile. Please try again.";
+                toastBody.classList.add('text-danger');
+                toast.show();
+            });
+        });
+        
+        // Add event listeners
+        addDialogueBtn.addEventListener('click', addDialogueExample);
+        
+        // Add input event listeners to all form fields
+        characterForm.querySelectorAll('input, textarea').forEach(input => {
+            input.addEventListener('input', updateJsonPreview);
+        });
+        
+        // Add at least one dialogue example by default
+        addDialogueExample();
+        
+        // Initialize preview
+        updateJsonPreview();
+    </script>
+</body>
+</html> 
