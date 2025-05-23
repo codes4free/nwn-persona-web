@@ -19,7 +19,7 @@ DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=.
 OutputBaseFilename=NWNLogClient_Setup
-SetupIconFile=nwn_icon.ico
+;SetupIconFile=nwn_icon.ico
 Compression=lzma
 SolidCompression=yes
 PrivilegesRequired=admin
@@ -72,10 +72,10 @@ begin
   LogPage.Add('Log File:', 'Text files (*.txt)|*.txt', '.txt');
   
   // Try to find default log location
-  if DirExists(ExpandConstant('{userdocs}\Documents\Neverwinter Nights\logs')) then
-    LogPage.Values[0] := ExpandConstant('{userdocs}\Documents\Neverwinter Nights\logs\nwclientLog1.txt')
-  else if DirExists(ExpandConstant('{userdocs}\OneDrive\Documents\Neverwinter Nights\logs')) then
-    LogPage.Values[0] := ExpandConstant('{userdocs}\OneDrive\Documents\Neverwinter Nights\logs\nwclientLog1.txt')
+  if DirExists(ExpandConstant('{userprofile}\Documents\Neverwinter Nights\logs')) then
+    LogPage.Values[0] := ExpandConstant('{userprofile}\Documents\Neverwinter Nights\logs\nwclientLog1.txt')
+  else if DirExists(ExpandConstant('{userprofile}\OneDrive\Documents\Neverwinter Nights\logs')) then
+    LogPage.Values[0] := ExpandConstant('{userprofile}\OneDrive\Documents\Neverwinter Nights\logs\nwclientLog1.txt')
   else
     LogPage.Values[0] := '';
   

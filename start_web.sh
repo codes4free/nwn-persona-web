@@ -15,9 +15,12 @@ else
     echo "WARNING: config.ini not found, using default settings"
 fi
 
+echo "DEBUG: PATH: $PATH"
+echo "DEBUG: 'python' found: $(command -v python)"
+
 # Check for Python and required packages
-if ! command -v python3 &> /dev/null; then
-    echo "Python 3 is required but not installed. Please install Python 3."
+if ! command -v python >/dev/null 2>&1; then
+    echo "Python is required but not installed. Please install Python."
     exit 1
 fi
 
@@ -35,7 +38,9 @@ mkdir -p character_profiles chat_history static/css static/js templates feedback
 echo "Starting NWNX:EE Chatbot Web Application..."
 echo "The server is configured to receive logs ONLY via WebSocket/API"
 echo "No local log file monitoring is active"
-python3 app.py
+export FLASK_APP=app.py
+# Ensure Flask runs on all interfaces
+flask run --host=0.0.0.0 --port=5000
 
 # Keep the script running
 echo "Web application exited. Press Ctrl+C to close this window."

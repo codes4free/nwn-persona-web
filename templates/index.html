@@ -9,6 +9,12 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+    <nav class="navbar" style="background-color: #343a40; color: white; padding: 10px;">
+        <div class="container" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Welcome, {{ session['user'] }}</span>
+            <a href="{{ url_for('logout') }}" style="color: #ffffff; text-decoration: none;">Logout</a>
+        </div>
+    </nav>
     <div class="container-fluid">
         <div class="row">
             <!-- Sidebar -->
@@ -107,7 +113,7 @@
                         </div>
                         <div class="card-body">
                             <div class="mb-3">
-                                <label for="portuguese-text" class="form-label">Your message (in Portuguese):</label>
+                                <label for="portuguese-text" class="form-label">Your message: Create your custom action here:</label>
                                 <textarea id="portuguese-text" class="form-control" rows="3" placeholder="Escreva sua mensagem em português aqui..."></textarea>
                             </div>
                             <button id="translate-button" class="btn btn-success mb-3">Express as Character</button>
@@ -122,6 +128,23 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- API Token Configuration -->
+    <div id="api-token-config" class="api-token-config p-3">
+        <div class="card">
+            <div class="card-header">
+                <h3>OpenAI API Token</h3>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="openai-token" class="form-label">Enter your OpenAI API token:</label>
+                    <input type="text" id="openai-token" class="form-control" placeholder="Your OpenAI API token">
+                    <button id="save-api-token" class="btn btn-primary mt-2">Set API Token</button>
+                </div>
+                <p class="small text-muted">Generate your own OpenAI API token at <a href="https://platform.openai.com/account/api-keys" target="_blank">OpenAI</a>. The model used is GPT-4.</p>
             </div>
         </div>
     </div>

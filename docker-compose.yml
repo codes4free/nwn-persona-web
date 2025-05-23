@@ -1,0 +1,17 @@
+version: '3.7'
+
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+
+  ngrok:
+    image: wernight/ngrok:latest
+    user: root
+    ports:
+      - "4040:4040"
+    environment:
+      - NGROK_AUTHTOKEN=2e6B0k3Jwoa7NmObzSgT63zr5fw_2GC3mA97WUHK3HCyFBPRL
+    command: sh -c "chmod o+w /bin && ngrok update && ngrok http web:5000" 
+    
