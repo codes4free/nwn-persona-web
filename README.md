@@ -147,6 +147,14 @@ This will start a Flask web server that allows you to:
 - Generate AI replies through the browser
 - Submit feedback on AI responses 
 
+## OpenAI API Token Configuration
+
+This application uses OpenAI's API (via the GPT-4 model) to generate in-character responses and translate custom messages. For security reasons, each user must provide their own OpenAI API token using the provided UI on the main page.
+
+To obtain an API token, visit [OpenAI API Keys](https://platform.openai.com/account/api-keys) and generate a new token.
+
+For development purposes, you can set the environment variable `OPENAI_API_KEY` in your `.env` file. However, this is not recommended for production as it exposes your personal token.
+
 ## Troubleshooting
 
 1. **Log file not found**: Make sure the Windows path is correctly mounted in WSL
