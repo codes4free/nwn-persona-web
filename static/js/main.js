@@ -795,4 +795,40 @@ function updateFeedbackSummary(data) {
 fetchCharacters();
 
 // Periodically refresh character list (every 30 seconds)
-setInterval(fetchCharacters, 30000); 
+setInterval(fetchCharacters, 30000);
+
+// Custom code to handle setting the OpenAI API token
+document.addEventListener('DOMContentLoaded', function() {
+    const saveTokenButton = document.getElementById('save-api-token');
+    if (saveTokenButton) {
+        saveTokenButton.addEventListener('click', function() {
+            const tokenInput = document.getElementById('openai-token');
+            const token = tokenInput.value.trim();
+            if (token === "") {
+                alert("Please enter a valid API token.");
+                return;
+            }
+            fetch('/set_openai_token', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'openai_token=' + encodeURIComponent(token)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.success) {
+                    alert("API token set successfully!");
+                    window.location.reload();
+                } else {
+                    alert("Error: " + (data.error || "Unknown error"));
+                }
+            })
+            .catch(error => {
+                console.error("Error setting API token:", error);
+                alert("Error setting API token: " + error);
+            });
+        });
+    }
+}); 

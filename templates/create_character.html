@@ -192,6 +192,16 @@ Never break character or reveal game mechanics."></textarea>
                         </button>
                     </div>
                     
+                    <!-- Improved layout for JSON import section -->
+                    <div class="form-section">
+                        <h3>Import Character via JSON</h3>
+                        <p>Select a JSON file to automatically fill out the form:</p>
+                        <div class="input-group">
+                            <input type="file" id="jsonFileInput" accept=".json" class="form-control">
+                            <button type="button" id="fill-form-btn" class="btn btn-primary">Fill Form</button>
+                        </div>
+                    </div>
+                    
                     <!-- Submit Section -->
                     <div class="d-flex justify-content-between mt-4 mb-5">
                         <a href="/" class="btn btn-secondary">Cancel</a>
@@ -447,6 +457,50 @@ Never break character or reveal game mechanics."></textarea>
         
         // Initialize preview
         updateJsonPreview();
+
+        // Updated fill-form event listener to fill all form fields
+        document.getElementById('fill-form-btn').addEventListener('click', function() {
+            var fileInput = document.getElementById('jsonFileInput');
+            if (fileInput.files.length === 0) {
+                alert("Please select a JSON file first.");
+                return;
+            }
+            var file = fileInput.files[0];
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    var data = JSON.parse(e.target.result);
+                    if(data.name) { document.getElementById('name').value = data.name; }
+                    if(data.title) { document.getElementById('title').value = data.title; }
+                    if(data.race) { document.getElementById('race').value = data.race; }
+                    if(data.class) { document.getElementById('class').value = data.class; }
+                    if(data.alignment) { document.getElementById('alignment').value = data.alignment; }
+                    if(data.description) { document.getElementById('description').value = data.description; }
+                    if(data.background) { document.getElementById('background').value = data.background; }
+                    if(data.appearance) { document.getElementById('appearance').value = data.appearance; }
+                    if(data.roleplay_prompt) { document.getElementById('roleplay_prompt').value = data.roleplay_prompt; }
+                    if(data.notes) { document.getElementById('notes').value = data.notes; }
+
+                    if(data.traits && Array.isArray(data.traits)) {
+                        document.getElementById('traits').value = data.traits.join('\n');
+                    }
+                    if(data.mannerisms && Array.isArray(data.mannerisms)) {
+                        document.getElementById('mannerisms').value = data.mannerisms.join('\n');
+                    }
+                    if(data.interaction_constraints && Array.isArray(data.interaction_constraints)) {
+                        document.getElementById('interaction_constraints').value = data.interaction_constraints.join('\n');
+                    }
+                    if(data.dialogue_examples && Array.isArray(data.dialogue_examples)) {
+                        document.getElementById('dialogue_examples').value = data.dialogue_examples.join('\n\n');
+                    }
+
+                    updateJsonPreview();
+                } catch(error) {
+                    alert("Error parsing JSON file: " + error);
+                }
+            };
+            reader.readAsText(file);
+        });
     </script>
 </body>
 </html> 

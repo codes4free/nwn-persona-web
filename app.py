@@ -6,11 +6,13 @@ import time
 import datetime
 import threading
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory, session, redirect, url_for, flash, abort
 from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
 import openai
 import character_manager  # Import the character manager module
+from functools import wraps
+from werkzeug.utils import secure_filename
 
 # Load environment variables
 load_dotenv()
@@ -23,18 +25,89 @@ FEEDBACK_DIR = "feedback_data"
 USER_ACCOUNT = os.getenv("USER_ACCOUNT", "Fullgazz")
 SYSTEM_PATTERN = r"\[Talk\] (?:What would you like to do\?|Please choose section:|<c>\[.*?\]</c>|Crafting Menu|Back|Cancel)"
 
+# Add persistent user storage at the top of the file (after other imports)
+USERS_FILE = 'users.json'
+
+UPLOAD_FOLDER = 'uploads/character_json'
+
+def load_users():
+    if os.path.exists(USERS_FILE):
+        try:
+            with open(USERS_FILE, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading users: {e}")
+            return {}
+    return {}
+
+def save_users(users):
+    try:
+        with open(USERS_FILE, 'w') as f:
+            json.dump(users, f, indent=2)
+    except Exception as e:
+        print(f"Error saving users: {e}")
+
 # Initialize Flask app
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "nwnx-chatbot-secret")
-socketio = SocketIO(app, cors_allowed_origins="*")
 
-# OpenAI Configuration
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    print("WARNING: No OpenAI API key found in environment variables. Please set OPENAI_API_KEY.")
-else:
-    print(f"Using OpenAI API key: {api_key[:5]}...{api_key[-4:]}")
-openai.api_key = api_key
+# Initialize SocketIO
+socketio = SocketIO(app, cors_allowed_origins="*", manage_session=True)
+
+#####################################
+## Authentication Routes
+#####################################
+users = load_users()
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if username in users and users[username] == password:
+            session['user'] = username
+            flash('Logged in successfully!', 'success')
+            return redirect(url_for('index'))
+        else:
+            flash('Invalid username or password', 'error')
+            return redirect(url_for('login'))
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.pop('user', None)
+    flash('Logged out', 'success')
+    return redirect(url_for('login'))
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        if username in users:
+            flash('Username already exists', 'error')
+            return redirect(url_for('register'))
+        if password != confirm_password:
+            flash('Passwords do not match', 'error')
+            return redirect(url_for('register'))
+        users[username] = password
+        save_users(users)
+        flash('Registration successful! Please log in.', 'success')
+        return redirect(url_for('login'))
+    return render_template('register.html')
+
+# OpenAI Configuration: Token will now be provided per session via API Token Configuration.
+def get_openai_api_key():
+    token = session.get("openai_token")
+    if not token:
+        print("ERROR: OpenAI API token not found in session.")
+        abort(400, description="Missing OpenAI API token. Please set your token using the API Token Configuration.")
+    return token
 
 # Global variables
 active_character = None
@@ -42,6 +115,7 @@ character_profiles = {}  # Will be loaded from character_manager
 chat_monitor_thread = None
 running = True
 last_position = 0
+online_users = set()
 
 # Setup directories
 os.makedirs(CHAT_HISTORY_DIR, exist_ok=True)
@@ -274,6 +348,7 @@ def generate_in_character_reply(character_name, player_message, num_alternatives
     user_prompt = f"Player says: {player_message}\nYour replies:"
 
     try:
+        openai.api_key = get_openai_api_key()
         response = openai.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -354,6 +429,7 @@ def translate_custom_message(character_name, portuguese_text):
     user_prompt = f"I want to roleplay as your character and say something in Portuguese. Please understand what I mean and express it as your character would: \"{portuguese_text}\"\n\nRespond with an appropriate character action and speech that conveys this meaning."
 
     try:
+        openai.api_key = get_openai_api_key()
         response = openai.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -430,93 +506,111 @@ def handle_translate_message(data):
     emit('translation_result', result)
 
 # Flask routes
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user' not in session:
+            flash('Please log in to access this page', 'error')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 @app.route('/')
+@login_required
 def index():
     """Render the main page"""
     return render_template('index.html')
 
 @app.route('/create-character')
+@login_required
 def create_character_form():
     """Render the character creation form"""
     return render_template('create_character.html')
 
 @app.route('/api/characters', methods=['GET'])
+@login_required
 def get_characters():
-    """Return list of available characters"""
+    """Return list of characters owned by the current user"""
+    current_user = session.get('user')
+    user_characters = {name: profile for name, profile in character_profiles.items() if profile.get('owner') == current_user}
     return jsonify({
         'active_character': active_character,
-        'characters': list(character_profiles.keys())
+        'characters': list(user_characters.keys())
     })
 
 @app.route('/api/characters', methods=['POST'])
+@login_required
 def create_character():
-    """Create a new character profile"""
+    """Create a new character profile for the current user"""
     data = request.json
     
-    # Validate required fields
     if not data or 'name' not in data:
         return jsonify({'error': 'Character name is required'}), 400
     
-    # Save character profile
+    # Set the owner to the current user
+    data['owner'] = session.get('user')
+
     result = character_manager.save_profile(data)
     
     if 'error' in result:
         return jsonify(result), 400
     
-    # Reload all character profiles
     global character_profiles
     character_profiles = character_manager.load_all_profiles()
     
     return jsonify(result)
 
 @app.route('/api/characters/<name>', methods=['DELETE'])
+@login_required
 def delete_character(name):
-    """Delete a character profile"""
+    """Delete a character profile if owned by the current user"""
     global active_character, character_profiles
     
-    # Check if character exists
     if name not in character_profiles:
         return jsonify({'error': 'Character not found'}), 404
     
-    # If this is the active character, clear it
+    # Check ownership
+    if character_profiles[name].get('owner') != session.get('user'):
+        return jsonify({'error': 'Unauthorized'}), 403
+
     if active_character == name:
         active_character = None
     
-    # Delete the character
     result = character_manager.delete_profile(name)
     
     if 'error' in result:
         return jsonify(result), 400
     
-    # Reload all character profiles
     character_profiles = character_manager.load_all_profiles()
-    
     return jsonify(result)
 
 @app.route('/api/character/<n>')
+@login_required
 def get_character(n):
-    """Return character profile"""
+    """Return character profile if owned by current user"""
     if n in character_profiles:
+        if character_profiles[n].get('owner') != session.get('user'):
+            return jsonify({'error': 'Unauthorized'}), 403
         return jsonify(character_profiles[n])
     return jsonify({'error': 'Character not found'}), 404
 
 @app.route('/api/character/<n>/activate', methods=['POST'])
+@login_required
 def set_active_character(n):
-    """Set a character as the active character"""
+    """Set a character as the active character if owned by current user"""
     global active_character
     
     if n not in character_profiles:
         return jsonify({'error': 'Character not found'}), 404
     
+    if character_profiles[n].get('owner') != session.get('user'):
+        return jsonify({'error': 'Unauthorized'}), 403
+
     active_character = n
     print(f"Manually activated character: {n}")
     
-    # Set up chat history for this character
     setup_chat_history(n)
-    
-    # Emit the character change to all clients
     socketio.emit('character_change', {'character': n})
-    
     return jsonify({'success': True, 'active_character': n})
 
 @app.route('/api/history/<character>')
@@ -544,7 +638,7 @@ def debug_info():
         'characters_loaded': list(character_profiles.keys()),
         'monitor_thread_alive': chat_monitor_thread.is_alive() if chat_monitor_thread else False,
         'socketio_initialized': socketio is not None,
-        'openai_key_available': api_key is not None
+        'openai_key_available': get_openai_api_key() is not None
     }
     
     # Directory info
@@ -709,14 +803,52 @@ def test_player_message():
             'error': str(e)
         }), 500
 
+@app.route('/api/character/upload-json', methods=['POST'])
+@login_required
+def upload_character_json():
+    """Endpoint to upload a JSON file for character profile and return its content."""
+    if 'json_file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+    file = request.files['json_file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    if not file.filename.lower().endswith('.json'):
+        return jsonify({'error': 'File must be in JSON format'}), 400
+    try:
+        user = session.get('user')
+        # Create user-specific upload directory
+        user_upload_folder = os.path.join(UPLOAD_FOLDER, user)
+        os.makedirs(user_upload_folder, exist_ok=True)
+        # Generate a secure filename using timestamp
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = secure_filename(f"{user}_{timestamp}.json")
+        file_path = os.path.join(user_upload_folder, filename)
+        file.save(file_path)
+        # Read and parse file content
+        file.seek(0)
+        file_content = file.read().decode('utf-8')
+        data = json.loads(file_content)
+        return jsonify({'success': True, 'message': 'File uploaded successfully', 'data': data, 'file_path': file_path}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # Socket.IO events
 @socketio.on('connect')
 def connect():
     """Handle client connection"""
+    if 'user' in session:
+        online_users.add(session['user'])
+        socketio.emit('active_users', list(online_users))
     emit('connection_status', {'status': 'connected'})
-    # Send current character info if available
     if active_character:
         emit('character_change', {'character': active_character})
+
+@socketio.on('disconnect')
+def disconnect():
+    """Handle client disconnection"""
+    if 'user' in session:
+        online_users.discard(session['user'])
+        socketio.emit('active_users', list(online_users))
 
 # Add new socketio endpoint for activating a character
 @socketio.on('activate_character')
@@ -1025,72 +1157,67 @@ def load_server_config():
     return host, port
 
 @app.route('/edit-character')
+@login_required
 def edit_character_form():
     """Render the character edit form"""
     return render_template('edit_character.html')
 
 @app.route('/api/character/<n>/update', methods=['POST'])
+@login_required
 def update_character(n):
-    """Update an existing character profile"""
+    """Update an existing character profile if owned by current user"""
     data = request.json
     
-    # Validate required fields
     if not data:
         return jsonify({'error': 'No data provided'}), 400
     
-    # Ensure character exists
     if n not in character_profiles:
         return jsonify({'error': 'Character not found'}), 404
     
-    # Update character profile
+    if character_profiles[n].get('owner') != session.get('user'):
+        return jsonify({'error': 'Unauthorized'}), 403
+
     result = character_manager.update_profile(n, data)
     
     if 'error' in result:
         return jsonify(result), 400
     
-    # Reload all character profiles
     character_profiles.update(character_manager.load_all_profiles())
     
     return jsonify(result)
 
 @app.route('/api/character/<n>/import-json', methods=['POST'])
+@login_required
 def import_json_profile(n):
-    """Import a character profile from JSON data"""
-    # Check if the character exists
+    """Import a character profile from JSON data if owned by current user"""
     if n not in character_profiles:
         return jsonify({'error': 'Character not found'}), 404
 
-    # Check if there's a file in the request
     if 'json_file' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
         
     file = request.files['json_file']
     
-    # Check if the file is empty
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
         
-    # Check if the file is a JSON file
     if not file.filename.lower().endswith('.json'):
         return jsonify({'error': 'File must be in JSON format'}), 400
     
     try:
-        # Read the file content
         json_data = file.read().decode('utf-8')
-        
-        # Parse the JSON
         data = json.loads(json_data)
         
-        # Ensure the name matches the current character
         data['name'] = n
         
-        # Update the character profile
+        if character_profiles[n].get('owner') != session.get('user'):
+            return jsonify({'error': 'Unauthorized'}), 403
+
         result = character_manager.update_profile(n, data)
         
         if 'error' in result:
             return jsonify(result), 400
             
-        # Reload character profiles
         character_profiles.update(character_manager.load_all_profiles())
         
         return jsonify({'success': True, 'message': f"Profile for {n} updated from JSON file"})
@@ -1099,6 +1226,15 @@ def import_json_profile(n):
         return jsonify({'error': 'Invalid JSON format'}), 400
     except Exception as e:
         return jsonify({'error': f'Error processing file: {str(e)}'}), 500
+
+# New endpoint to set the OpenAI API token for the session
+@app.route("/set_openai_token", methods=["POST"])
+def set_openai_token():
+    token = request.form.get("openai_token")
+    if not token:
+        return jsonify({"error": "Missing token"}), 400
+    session["openai_token"] = token
+    return jsonify({"success": True, "message": "Token set successfully"})
 
 # Main entry point
 if __name__ == "__main__":
