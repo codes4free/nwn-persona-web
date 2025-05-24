@@ -144,11 +144,18 @@ def get_template_profile():
     }
 
 def update_profile(character_name, profile_data):
-    """Update an existing character profile"""
+    """Update an existing character profile by merging new data with the existing profile.
+
+    Args:
+        character_name (str): The name of the character (cannot be changed).
+        profile_data (dict): The new data to update for the character.
+
+    Returns:
+        dict: Success or error message.
+    """
     if not character_name:
         return {"error": "Character name is required"}
     
-    # Check if character exists
     profile_path = os.path.join(CHARACTER_PROFILES_DIR, f"{character_name.replace(' ', '_')}.json")
     if not os.path.exists(profile_path):
         return {"error": "Character profile not found"}
@@ -161,47 +168,45 @@ def update_profile(character_name, profile_data):
         print(f"Error reading profile {character_name}: {e}")
         return {"error": f"Failed to read profile: {str(e)}"}
     
-    # Make sure the name matches (cannot be changed)
-    if profile_data.get('name') != character_name:
-        profile_data['name'] = character_name
+    # Merge existing profile with new data (preserving missing fields)
+    merged_profile = existing_profile.copy()
+    merged_profile.update(profile_data)
+    # Ensure the character's name remains unchanged
+    merged_profile['name'] = character_name
     
-    # Ensure the required fields exist
+    # Validate required fields in the merged profile
     required_fields = ['name', 'race', 'class', 'alignment', 'description', 'background', 'appearance', 'traits']
     for field in required_fields:
-        if field not in profile_data or not profile_data[field]:
+        if field not in merged_profile or not merged_profile[field]:
             return {"error": f"Field '{field}' is required"}
     
-    # Ensure lists are properly formatted
+    # Ensure list fields are properly formatted
     list_fields = ['traits', 'mannerisms', 'interaction_constraints']
     for field in list_fields:
-        if field in profile_data:
-            # If it's a string, split by newlines and filter empty lines
-            if isinstance(profile_data[field], str):
-                profile_data[field] = [line.strip() for line in profile_data[field].split('\n') if line.strip()]
-            
-            # Ensure it's a list
-            if not isinstance(profile_data[field], list):
-                profile_data[field] = []
+        if field in merged_profile:
+            if isinstance(merged_profile[field], str):
+                merged_profile[field] = [line.strip() for line in merged_profile[field].split('\n') if line.strip()]
+            if not isinstance(merged_profile[field], list):
+                merged_profile[field] = []
     
     # Ensure dialogue examples are formatted properly
-    if 'dialogue_examples' in profile_data and not isinstance(profile_data['dialogue_examples'], list):
-        if isinstance(profile_data['dialogue_examples'], str):
-            # Try to parse as JSON if it's a string
+    if 'dialogue_examples' in merged_profile and not isinstance(merged_profile['dialogue_examples'], list):
+        if isinstance(merged_profile['dialogue_examples'], str):
             try:
-                profile_data['dialogue_examples'] = json.loads(profile_data['dialogue_examples'])
+                merged_profile['dialogue_examples'] = json.loads(merged_profile['dialogue_examples'])
             except:
-                profile_data['dialogue_examples'] = []
+                merged_profile['dialogue_examples'] = []
         else:
-            profile_data['dialogue_examples'] = []
+            merged_profile['dialogue_examples'] = []
     
+    # Save the updated profile
     try:
         with open(profile_path, 'w', encoding='utf-8') as f:
-            json.dump(profile_data, f, indent=2)
-            
-        # Reload character_profiles
+            json.dump(merged_profile, f, indent=2)
+        
         global character_profiles
         character_profiles = load_all_profiles()
-            
+        
         return {"success": True, "message": f"Profile for {character_name} updated successfully"}
     except Exception as e:
         print(f"Error updating profile {character_name}: {e}")

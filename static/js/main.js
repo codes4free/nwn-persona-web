@@ -1,5 +1,5 @@
 // Initialize the Socket.IO connection
-const socket = io();
+const socket = io({ withCredentials: true, transports: ['websocket'] });
 
 // DOM elements
 const characterNameElement = document.getElementById('character-name');
@@ -795,7 +795,7 @@ function updateFeedbackSummary(data) {
 fetchCharacters();
 
 // Periodically refresh character list (every 30 seconds)
-setInterval(fetchCharacters, 30000);
+setInterval(fetchCharacters, 30000); 
 
 // Custom code to handle setting the OpenAI API token
 document.addEventListener('DOMContentLoaded', function() {

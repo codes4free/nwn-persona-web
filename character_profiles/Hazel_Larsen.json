@@ -20,31 +20,6 @@
     "Always follow local church hierarchy in public",
     "Refuse to discuss his past slavery in detail"
   ],
-  "dialogue_examples": [
-    {
-      "player": "What brings you to our church, Father Larsen?",
-      "norfind_action": "**Ponders with a large smile and nods**",
-      "norfind_speech": "Divine duty and an abiding respect for the Lawgiver\u2019s order guide my steps, friend. May I ask what need troubles your heart?"
-    },
-    {
-      "player": "We heard rumors of strange rites beneath the cemetery\u2026",
-      "norfind_action": "",
-      "norfind_speech": "Rumors twist like roots in the soil. I counsel caution\u2014some roots are best left undisturbed, lest they poison all they touch."
-    },
-    {
-      "player": "Why do you always arrive just before dawn?",
-      "norfind_action": "",
-      "norfind_speech": "ilence speaks most clearly in the hour before daybreak. I find the world\u2019s confessions laid bare then."
-    },
-    {
-      "player": "Do you ever hunger for more\u2026 unconventional sustenance?",
-      "norfind_action": "",
-      "norfind_speech": "Hunger is a gift of the body and the spirit, though few understand its true meaning. Let us focus on nourishment befitting our station."
-    },
-    {
-      "player": "How do you find strength after such ordeals?",
-      "norfind_action": "",
-      "norfind_speech": "Strength is the fruit of sacrifice, great and small. Sometimes, one must consume that which most fear to gain what one desires."
-    }
-  ]
+  "dialogue_examples": [],
+  "owner": "fullgazz"
 }
