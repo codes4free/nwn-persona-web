@@ -22,7 +22,7 @@ A Python-based chatbot for Neverwinter Nights Enhanced Edition that monitors cha
 
 ## Setup
 
-1. Make sure Neverwinter Nights is set to log chat to: `F:\OneDrive\Documentos\Neverwinter Nights\logs\nwclientLog1.txt`
+1. Make sure Neverwinter Nights is set to log chat to: `{userdocs}\Neverwinter Nights\logs\nwclientLog1.txt`
 
 2. Install the required packages:
    ```

@@ -352,4 +352,16 @@ body {
 
 .auth-container ul li.error {
     color: red;
+}
+
+/* Hint text style for the message prompting player message selection */
+.hint-text {
+  color: #808080;
+  /* You can adjust brightness by changing the hex code if needed */
+}
+
+/* Override .text-muted for better readability */
+.text-muted {
+  color: #adb5bd !important;
+  font-weight: 500;
 } 
