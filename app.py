@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# Configure eventlet at the very top - before ANY other imports
+import eventlet
+eventlet.monkey_patch(socket=True, os=True, select=True, thread=True, time=True)
+
 import os
 import re
 import json
@@ -16,8 +20,16 @@ from werkzeug.utils import secure_filename
 import logging
 from typing import Any, Dict, List, Optional
 
-logging.basicConfig(level=logging.INFO)
+# Set up more detailed logging
+logging.basicConfig(level=logging.INFO, 
+                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Enable detailed Socket.IO and Engine.IO logging
+engineio_logger = logging.getLogger('engineio')
+engineio_logger.setLevel(logging.DEBUG)
+socketio_logger = logging.getLogger('socketio')
+socketio_logger.setLevel(logging.DEBUG)
 
 # Load environment variables
 load_dotenv()
@@ -27,7 +39,6 @@ CHARACTER_PROFILES_DIR = "character_profiles"
 CHAT_HISTORY_DIR = "chat_history"
 FEEDBACK_DIR = "feedback_data"
 # No local log file path - we only receive logs via WebSocket/API
-USER_ACCOUNT = os.getenv("USER_ACCOUNT", "Fullgazz")
 SYSTEM_PATTERN = r"\[Talk\] (?:What would you like to do\?|Please choose section:|<c>\[.*?\]</c>|Crafting Menu|Back|Cancel)"
 
 # Add persistent user storage at the top of the file (after other imports)
@@ -58,8 +69,23 @@ def save_users(users: Dict[str, Any]) -> None:
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "nwnx-chatbot-secret")
 
-# Initialize SocketIO
-socketio = SocketIO(app, cors_allowed_origins="*", manage_session=True)
+# Initialize SocketIO with proper configuration
+socketio = SocketIO(
+    app, 
+    async_mode='eventlet', 
+    cors_allowed_origins="*", 
+    manage_session=True,
+    ping_timeout=10,  # Reduce ping timeout
+    ping_interval=5,  # More frequent pings
+    logger=True,
+    engineio_logger=True,
+    always_connect=True,  # Allow connections even if the initial transport isn't available
+    transports=['polling', 'websocket'],  # Explicitly specify available transports, with polling first
+    cookie=False,  # Disable cookies to avoid CORS issues with credentials
+    upgrade_timeout=10000,  # Reduce upgrade timeout
+    max_http_buffer_size=1e7,  # Increase buffer size
+    http_compression=True  # Enable compression
+)
 
 #####################################
 ## Authentication Routes
@@ -142,7 +168,10 @@ def detect_character(line: str) -> Optional[str]:
         Optional[str]: Detected character name or None.
     """
     global active_character
-    character_pattern = re.compile(r"\[" + re.escape(USER_ACCOUNT) + r"\] ([^:]+)")
+    current_user = session.get('user', '')
+    if not current_user:
+        return None
+    character_pattern = re.compile(r"\[" + re.escape(current_user) + r"\] ([^:]+)")
     match = character_pattern.search(line)
     
     if match:
@@ -163,12 +192,10 @@ def detect_character(line: str) -> Optional[str]:
 # Setup chat history
 def setup_chat_history(character_name: str) -> None:
     """Set up directory for character chat history."""
-    try:
-        character_dir = os.path.join(CHAT_HISTORY_DIR, character_name.replace(' ', '_'))
-        os.makedirs(character_dir, exist_ok=True)
-        logger.info(f"Chat history directory for {character_name}: {character_dir}")
-    except Exception as e:
-        logger.error(f"Error setting up chat history: {e}")
+    user = session.get('user', 'default')
+    character_dir = os.path.join(CHAT_HISTORY_DIR, user, character_name.replace(' ', '_'))
+    os.makedirs(character_dir, exist_ok=True)
+    logger.info(f"Chat history directory for {character_name} of user {user}: {character_dir}")
 
 # Save to chat history
 def save_to_history(character_name: str, message: str, sender: str, timestamp: Optional[str] = None) -> None:
@@ -177,7 +204,8 @@ def save_to_history(character_name: str, message: str, sender: str, timestamp: O
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     try:
-        character_dir = os.path.join(CHAT_HISTORY_DIR, character_name.replace(' ', '_'))
+        user = session.get('user', 'default')
+        character_dir = os.path.join(CHAT_HISTORY_DIR, user, character_name.replace(' ', '_'))
         history_file = os.path.join(character_dir, 'chat_history.json')
         
         if os.path.exists(history_file):
@@ -209,15 +237,24 @@ def monitor_chat() -> None:
         time.sleep(5)  # Just sleep, actual processing happens in socket handlers
 
 # Process new messages
-def process_new_messages(data: str, override_character: Optional[str] = None) -> None:
+def process_new_messages(data: str, client=None, user_characters=None, override_character: Optional[str] = None) -> None:
     """Process incoming chat messages and emit events to clients."""
     lines = data.strip().split('\n')
     logger.info(f"Processing {len(lines)} new message lines")
     
-    # Determine emit parameters based on override_character
-    emit_kwargs = {}
-    if override_character:
-        emit_kwargs['room'] = override_character
+    active_char = None
+    
+    # Use provided characters or get all if not provided
+    if not user_characters and client:
+        user_characters = {name: profile for name, profile in character_profiles.items() 
+                          if profile.get('owner') == client}
+    
+    # If no active character is set but we have user characters, use the first one
+    if user_characters:
+        # Get the first character for this user if they have any
+        if not active_char and len(user_characters) > 0:
+            active_char = next(iter(user_characters.keys()))
+            logger.info(f"Default active_character set to {active_char} for client {client}")
     
     for line in lines:
         # Skip empty lines
@@ -230,16 +267,22 @@ def process_new_messages(data: str, override_character: Optional[str] = None) ->
             continue
         
         # Use override_character if provided, otherwise detect from line
-        if override_character:
-            character_name = override_character
-        else:
-            character_name = detect_character(line)
-        
+        character_name = override_character
         if not character_name:
+            # For log API updates, use the client's active character
+            character_name = active_char
+            
+            # Try to detect character from line
+            for char_name in user_characters.keys():
+                if f"[{client}] {char_name}" in line:
+                    character_name = char_name
+                    break
+        
+        if not character_name and not client:
             continue
         
-        # Check if this is our own character's message
-        is_own_message = f"[{USER_ACCOUNT}]" in line
+        # Check if this is the client's own character's message
+        is_own_message = client and f"[{client}]" in line
         
         # Check if this is likely a system menu message
         is_system_message = is_own_message and re.search(SYSTEM_PATTERN, line)
@@ -251,9 +294,34 @@ def process_new_messages(data: str, override_character: Optional[str] = None) ->
             
         logger.info(f"Processing chat message: {line[:50]}...")
         
-        # Save the message
+        # Save the message if we have a character
         if character_name:
-            save_to_history(character_name, line, "self" if is_own_message else "other")
+            # Create in-memory record only - don't rely on session
+            try:
+                user = client or 'default'
+                character_dir = os.path.join(CHAT_HISTORY_DIR, user, character_name.replace(' ', '_'))
+                os.makedirs(character_dir, exist_ok=True)
+                
+                history_file = os.path.join(character_dir, 'chat_history.json')
+                
+                timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                if os.path.exists(history_file):
+                    with open(history_file, 'r', encoding='utf-8') as f:
+                        history = json.load(f)
+                else:
+                    history = []
+                
+                history.append({
+                    "timestamp": timestamp,
+                    "sender": "self" if is_own_message else "other",
+                    "message": line
+                })
+                
+                with open(history_file, 'w', encoding='utf-8') as f:
+                    json.dump(history, f, indent=2)
+            except Exception as e:
+                logger.error(f"Error saving to chat history: {e}")
         
         # Parse the original message content for player messages
         original_message = None
@@ -283,15 +351,16 @@ def process_new_messages(data: str, override_character: Optional[str] = None) ->
                 speaker, text = simple_match.groups()
                 formatted_message = f"<strong>{speaker}:</strong> {text}"
         
-        # Emit the new_message event to clients in the specific room if override is provided
-        logger.info(f"Broadcasting message to clients in room {emit_kwargs.get('room', 'all')}")
+        # Emit the new_message event to all clients
+        logger.info(f"Broadcasting message to all clients")
         socketio.emit('new_message', {
             'character': character_name,
             'message': formatted_message,
             'raw_message': line,
             'is_own': is_own_message,
-            'original_message': original_message
-        }, **emit_kwargs)
+            'original_message': original_message,
+            'client': client
+        })
             
         # Process NPC/player messages for auto-reply
         if not is_own_message:
@@ -301,10 +370,11 @@ def process_new_messages(data: str, override_character: Optional[str] = None) ->
                 account, char_name, player_message = match.groups()
                 logger.info(f"Broadcasting player message from {char_name} to all clients")
                 socketio.emit('player_message', {
-                    'character': active_character,
+                    'character': character_name,
                     'player_name': char_name,
-                    'message': player_message
-                }, **emit_kwargs)
+                    'message': player_message,
+                    'client': client
+                })
             else:
                 # Fallback: Try to match Name: [Talk] message
                 match = re.match(r"([^:]+): \[Talk\] (.*)", line)
@@ -312,13 +382,14 @@ def process_new_messages(data: str, override_character: Optional[str] = None) ->
                     name, player_message = match.groups()
                     logger.info(f"Broadcasting player message from {name} to all clients")
                     socketio.emit('player_message', {
-                        'character': active_character,
+                        'character': character_name,
                         'player_name': name,
-                        'message': player_message
-                    }, **emit_kwargs)
+                        'message': player_message,
+                        'client': client
+                    })
 
 # Generate AI responses
-def generate_in_character_reply(character_name, player_message, num_alternatives=3):
+def generate_in_character_reply(character_name, player_message, num_alternatives=3, context=None):
     """Generate AI responses for a character"""
     if not character_name or character_name not in character_profiles:
         return []
@@ -364,16 +435,38 @@ def generate_in_character_reply(character_name, player_message, num_alternatives
         f"\n3. Creative and elegant, with some flair (3 lines)."
         f"\nLabel each reply as '1.', '2.', and '3.' respectively."
     )
-    user_prompt = f"Player says: {player_message}\nYour replies:"
+    
+    # Build messages array with context if available
+    messages = [{"role": "system", "content": system_prompt}]
+    
+    # Add conversation context if available
+    if context and context.get("messages") and len(context.get("messages", [])) > 0:
+        # Log context being used
+        logger.info(f"Using context with {len(context.get('messages', []))} messages")
+        
+        # Add context messages to conversation history
+        for msg in context.get("messages", []):
+            if msg.get("speaker") and msg.get("text"):
+                role = "assistant" if msg.get("speaker") == character_name else "user"
+                messages.append({
+                    "role": role,
+                    "content": f"{msg.get('speaker')}: {msg.get('text')}"
+                })
+                
+        # Add a separator after context
+        messages.append({
+            "role": "system", 
+            "content": "The above messages provide context for the conversation. Now respond to the following message:"
+        })
+    
+    # Add the current message
+    messages.append({"role": "user", "content": f"Player says: {player_message}\nYour replies:"})
 
     try:
         openai.api_key = get_openai_api_key()
         response = openai.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
+            messages=messages,
             max_tokens=400,
             temperature=temperature,
             n=1,
@@ -634,7 +727,8 @@ def set_active_character(n):
 def get_history(character):
     """Return chat history for a character"""
     try:
-        character_dir = os.path.join(CHAT_HISTORY_DIR, character.replace(' ', '_'))
+        user = session.get('user', 'default')
+        character_dir = os.path.join(CHAT_HISTORY_DIR, user, character.replace(' ', '_'))
         history_file = os.path.join(character_dir, 'chat_history.json')
         
         if os.path.exists(history_file):
@@ -718,6 +812,7 @@ def handle_ai_reply_request(data):
     character_name = data.get('character', session.get('active_character'))
     player_message = data.get('message', '')
     player_name = data.get('player_name', 'Unknown')
+    context = data.get('context', None)
     
     if not character_name or not player_message:
         emit('ai_reply', {'error': 'Missing character or message'})
@@ -725,8 +820,11 @@ def handle_ai_reply_request(data):
     
     # Log the request
     logger.info(f"Generating AI reply for '{character_name}' responding to '{player_name}': '{player_message}'")
+    if context and context.get('messages'):
+        logger.info(f"Using context window with {len(context.get('messages', []))} messages")
     
-    responses = generate_in_character_reply(character_name, player_message)
+    # Generate responses with context if available
+    responses = generate_in_character_reply(character_name, player_message, context=context)
     
     # Make sure responses don't have em dashes
     responses = [remove_em_dashes(response) for response in responses]
@@ -755,12 +853,13 @@ def manual_respond():
     character_name = data.get('character', session.get('active_character'))
     player_message = data.get('message', '')
     player_name = data.get('player_name', 'Unknown')
+    context = data.get('context', None)
     
     if not character_name or not player_message:
         return jsonify({'error': 'Missing character or message'}), 400
     
-    # Generate response
-    responses = generate_in_character_reply(character_name, player_message)
+    # Generate response with context if available
+    responses = generate_in_character_reply(character_name, player_message, context=context)
     
     # Save to history
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -798,7 +897,8 @@ def save_feedback(character_name, message_data, response, rating, notes=""):
         return {"error": "No character specified"}
     
     # Create character-specific feedback directory
-    feedback_dir = os.path.join(FEEDBACK_DIR, character_name.replace(' ', '_'))
+    user = session.get('user', 'default')
+    feedback_dir = os.path.join(FEEDBACK_DIR, user, character_name.replace(' ', '_'))
     os.makedirs(feedback_dir, exist_ok=True)
     
     # Create the feedback entry
@@ -872,7 +972,8 @@ def get_character_feedback_summary(character_name):
     if not character_name:
         return {"error": "No character specified"}
     
-    feedback_dir = os.path.join(FEEDBACK_DIR, character_name.replace(' ', '_'))
+    user = session.get('user', 'default')
+    feedback_dir = os.path.join(FEEDBACK_DIR, user, character_name.replace(' ', '_'))
     summary_file = os.path.join(feedback_dir, "feedback_summary.json")
     
     if not os.path.exists(summary_file):
@@ -928,45 +1029,31 @@ def handle_feedback(data):
 
 @app.route('/api/log_update', methods=['POST'])
 def log_update():
-    data = request.get_json()
-    if not data:
-        return jsonify({'error': 'Invalid payload'}), 400
-
-    # Use 'client_name' if available, else fall back to 'client'
-    client_name = data.get('client_name') or data.get('client')
-    if not client_name:
-        return jsonify({'error': 'Missing client_name or client key'}), 400
-
-    # Try to get 'log' key; if missing, combine lines from 'lines' key if available
-    log_message = data.get('log')
-    if not log_message:
-        lines = data.get('lines')
-        if lines and isinstance(lines, list):
-            log_message = "\n".join(lines)
-    if not log_message:
-        return jsonify({'error': 'Missing log message'}), 400
-
-    # Ensure the session directory exists
-    session_dir = os.path.join('chat_history', client_name)
-    os.makedirs(session_dir, exist_ok=True)
-    log_file = os.path.join(session_dir, 'client.log')
-
-    # Append the log message to the client's log file
+    """Endpoint to receive log updates from NWN Log Client."""
     try:
-        with open(log_file, 'a') as f:
-            f.write(log_message + '\n')
+        data = request.get_json() or request.form.to_dict()
+        app.logger.info("Received log update: %s", data)
+        
+        if 'lines' in data:
+            log_text = "\n".join(data['lines'])
+            client = data.get('client', 'default')
+            
+            # Get the user's characters
+            user_characters = {name: profile for name, profile in character_profiles.items() 
+                              if profile.get('owner') == client}
+            
+            # Process messages with global broadcast
+            process_new_messages(log_text, client=client, user_characters=user_characters)
+            
+        return jsonify(success=True), 200
     except Exception as e:
-        return jsonify({'error': 'Failed to write log: ' + str(e)}), 500
-
-    # Process the log message with override so that it is attributed to client_name
-    process_new_messages(log_message, override_character=client_name)
-
-    return jsonify({'message': 'Log updated successfully.'}), 200
+        app.logger.error("Error processing log update: %s", e)
+        return jsonify(success=False, error=str(e)), 500
 
 # Load server configuration
 def load_server_config():
     """Load server configuration from config.ini"""
-    host = '0.0.0.0'  # Default host
+    host = '0.0.0.0'  # Default host for IPv4 (all interfaces)
     port = 5000       # Default port
     
     try:
@@ -1066,11 +1153,312 @@ def set_openai_token():
     session["openai_token"] = token
     return jsonify({"success": True, "message": "Token set successfully"})
 
+# --- Multi-tone response generation endpoint ---
+@app.route('/generate_response', methods=['POST'])
+def generate_response():
+    try:
+        # Get the latest user message from the request payload
+        data = request.get_json(force=True)
+        user_message = data.get('message', '')
+
+        # Retrieve or initialize the chat history from session
+        chat_history = session.get('chat_history', [])
+        chat_history.append({'role': 'User', 'message': user_message})
+
+        # Build the conversation text from history
+        conversation_text = ""
+        for entry in chat_history:
+            conversation_text += f"{entry['role']}: {entry['message']}\n"
+
+        # Append instructions for the multi-tone response
+        conversation_text += ("\nBased on the above conversation, please provide three distinct responses with the following tones:\n"
+                              "Positive Answer: \n"
+                              "Neutral Answer: \n"
+                              "Negative Answer: \n")
+
+        # Call the OpenAI API (ensure OPENAI_API_KEY is set in environment variables)
+        import openai, os, re
+        openai.api_key = os.getenv('OPENAI_API_KEY')
+        response = openai.Completion.create(
+            engine='text-davinci-003',
+            prompt=conversation_text,
+            max_tokens=150,
+            temperature=0.7,
+            n=1
+        )
+        response_text = response.choices[0].text.strip()
+
+        # Parse the response to extract the three tone answers
+        pos_match = re.search(r"Positive Answer:\s*(.*?)\n(?:Neutral Answer:|Negative Answer:|$)", response_text, re.DOTALL)
+        neu_match = re.search(r"Neutral Answer:\s*(.*?)\n(?:Negative Answer:|$)", response_text, re.DOTALL)
+        neg_match = re.search(r"Negative Answer:\s*(.*)", response_text, re.DOTALL)
+
+        positive = pos_match.group(1).strip() if pos_match else ""
+        neutral = neu_match.group(1).strip() if neu_match else ""
+        negative = neg_match.group(1).strip() if neg_match else ""
+
+        # Save the updated chat history back to the session
+        session['chat_history'] = chat_history
+        return jsonify({
+            'positive': positive,
+            'neutral': neutral,
+            'negative': negative
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+# Debug endpoint to get current server state
+@app.route('/debug')
+def debug_info():
+    import datetime
+    # If no active character is set, default to the first character owned by the current user
+    if not session.get('active_character'):
+        current_user = session.get('user')
+        for name, profile in character_profiles.items():
+            if profile.get('owner') == current_user:
+                session['active_character'] = name
+                logger.info(f"Default active_character set to {name} in /debug")
+                socketio.emit('character_change', {'character': name})
+                break
+
+    debug_data = {
+        "server_time": datetime.datetime.now().isoformat(),
+        "active_character": session.get('active_character'),
+        "user": session.get('user'),
+        "character_profiles": list(character_profiles.keys())
+    }
+    return jsonify(debug_data)
+
+# WebSocket debug page
+@app.route('/debug_websocket')
+def debug_websocket():
+    return render_template('debug_websocket.html')
+
+# Health check endpoint
+@app.route('/health')
+def health_check():
+    """Simple health check endpoint to verify server is responsive"""
+    return jsonify({
+        'status': 'ok',
+        'timestamp': datetime.datetime.now().isoformat(),
+        'socket_io_enabled': True,
+        'transport_modes': socketio.transport_methods
+    })
+
+# Socket.IO specific health check endpoint that doesn't require auth
+@app.route('/socket_health')
+def socket_health_check():
+    """Socket.IO specific health check that doesn't require authentication"""
+    # Create a simple ping event handler if it doesn't exist
+    if not hasattr(socketio.handlers[0], 'ping_pong_handler_added'):
+        @socketio.on('socket_ping')
+        def handle_socket_ping():
+            emit('socket_pong', {'time': datetime.datetime.now().isoformat()})
+        socketio.handlers[0].ping_pong_handler_added = True
+        
+    return jsonify({
+        'status': 'ok',
+        'timestamp': datetime.datetime.now().isoformat(),
+        'socket_io_version': socketio.socketio_version,
+        'engineio_version': socketio.server.eio.engineio_version,
+        'async_mode': socketio.async_mode,
+        'cors_allowed_origins': socketio.server.cors_allowed_origins,
+        'ping_interval': socketio.server.eio.ping_interval,
+        'ping_timeout': socketio.server.eio.ping_timeout,
+        'transports': socketio.transports
+    })
+
+# Test message endpoint for debugging
+@app.route('/debug_send_message', methods=['POST'])
+def debug_send_message():
+    """Endpoint to manually send a test message to all clients"""
+    try:
+        data = request.get_json()
+        if not data or 'message' not in data:
+            return jsonify({'error': 'No message provided'}), 400
+            
+        test_message = data['message']
+        client = data.get('client', 'test_client')
+        character = data.get('character', 'Test Character')
+        
+        # Format a test message like it would come from the game
+        test_line = f"[{client}] {character}: [Talk] {test_message}"
+        
+        logger.info(f"Sending test message: {test_line}")
+        
+        # Create a test user_characters dict
+        user_characters = {character: {'owner': client}}
+        
+        # Process the message
+        process_new_messages(test_line, client=client, user_characters=user_characters)
+        
+        return jsonify({'success': True, 'message': 'Test message sent'}), 200
+    except Exception as e:
+        logger.error(f"Error sending test message: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# Ping handler for testing WebSocket connection
+@socketio.on('ping')
+def handle_ping(data=None):
+    """Handle ping event for testing connection latency"""
+    emit('pong', {'time': datetime.datetime.now().isoformat()})
+
+# Simple Socket.IO test page (no auth required)
+@app.route('/socket_test')
+def socket_test():
+    """Simple Socket.IO test page that doesn't require authentication"""
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Basic Socket.IO Test</title>
+        <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            #status { padding: 10px; margin: 10px 0; }
+            .success { background-color: #dff0d8; color: #3c763d; }
+            .error { background-color: #f2dede; color: #a94442; }
+            .pending { background-color: #fcf8e3; color: #8a6d3b; }
+            pre { background-color: #f5f5f5; padding: 10px; overflow: auto; }
+        </style>
+    </head>
+    <body>
+        <h1>Basic Socket.IO Test</h1>
+        <div id="status" class="pending">Connecting...</div>
+        <button id="connect">Connect</button>
+        <button id="disconnect">Disconnect</button>
+        <button id="ping">Ping Server</button>
+        <h2>Connection Log</h2>
+        <pre id="log"></pre>
+        
+        <script>
+            const statusEl = document.getElementById('status');
+            const logEl = document.getElementById('log');
+            const connectBtn = document.getElementById('connect');
+            const disconnectBtn = document.getElementById('disconnect');
+            const pingBtn = document.getElementById('ping');
+            
+            // Log helper
+            function log(msg, type) {
+                const timestamp = new Date().toISOString();
+                logEl.textContent += `[${timestamp}] ${msg}\\n`;
+                console.log(`[${type || 'info'}] ${msg}`);
+            }
+            
+            let socket;
+            
+            function initSocket() {
+                log('Initializing Socket.IO with minimal config...');
+                statusEl.className = 'pending';
+                statusEl.textContent = 'Connecting...';
+                
+                // Most minimal Socket.IO config
+                socket = io({
+                    transports: ['polling'],
+                    reconnectionAttempts: 3,
+                    timeout: 5000,
+                    forceNew: true,
+                    upgrade: false
+                });
+                
+                socket.on('connect', () => {
+                    log('Connected!', 'success');
+                    statusEl.className = 'success';
+                    statusEl.textContent = 'Connected';
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                    pingBtn.disabled = false;
+                });
+                
+                socket.on('disconnect', (reason) => {
+                    log(`Disconnected: ${reason}`, 'error');
+                    statusEl.className = 'error';
+                    statusEl.textContent = `Disconnected: ${reason}`;
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                    pingBtn.disabled = true;
+                });
+                
+                socket.on('connect_error', (error) => {
+                    log(`Connection error: ${error.message}`, 'error');
+                    statusEl.className = 'error';
+                    statusEl.textContent = `Error: ${error.message}`;
+                });
+                
+                socket.on('socket_pong', (data) => {
+                    log(`Received pong: ${JSON.stringify(data)}`, 'success');
+                });
+                
+                // Automatically try to connect
+                return socket;
+            }
+            
+            // Event listeners
+            connectBtn.addEventListener('click', () => {
+                if (socket && socket.connected) {
+                    log('Already connected');
+                    return;
+                }
+                socket = initSocket();
+            });
+            
+            disconnectBtn.addEventListener('click', () => {
+                if (socket) {
+                    socket.disconnect();
+                    log('Manually disconnected');
+                }
+            });
+            
+            pingBtn.addEventListener('click', () => {
+                if (socket && socket.connected) {
+                    log('Sending ping...');
+                    socket.emit('socket_ping');
+                } else {
+                    log('Not connected, cannot ping', 'error');
+                }
+            });
+            
+            // Start on page load
+            disconnectBtn.disabled = true;
+            pingBtn.disabled = true;
+            
+            // Initialize on page load with a delay
+            setTimeout(() => {
+                socket = initSocket();
+            }, 500);
+        </script>
+    </body>
+    </html>
+    '''
+
+# Add route for context window documentation
+@app.route('/context-window')
+def context_window_docs():
+    """Render the context window documentation page"""
+    return render_template('context_window.html')
+
 # Main entry point
 if __name__ == "__main__":
+    # Check if eventlet is properly patched
+    logger.info("Checking eventlet monkey patching status:")
+    import socket
+    logger.info(f"socket.socket patched: {hasattr(socket.socket, '_eventlet_patched')}")
+    
+    # Start monitor thread
     start_monitor()
+    
+    # Load server configuration
     host, port = load_server_config()
-    socketio.run(app, host=host, port=port, debug=True)
+    
+    logger.info(f"Starting server on {host}:{port}")
+    
+    # Run with eventlet
+    socketio.run(app, 
+                 host=host, 
+                 port=port, 
+                 debug=True, 
+                 allow_unsafe_werkzeug=True,
+                 log_output=True)
 else:
     # For gunicorn or other WSGI servers
     start_monitor() 
