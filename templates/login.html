@@ -5,6 +5,7 @@
   <title>Login</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&display=swap">
   <style>
     .download-banner {
       background: linear-gradient(135deg, #343a40, #17a2b8);
@@ -28,6 +29,26 @@
       background-size: 20px 20px;
       opacity: 0.2;
       z-index: 0;
+    }
+    
+    .download-banner::after {
+      content: "NWN";
+      position: absolute;
+      top: 50%;
+      right: 10px;
+      font-size: 60px;
+      font-weight: bold;
+      font-family: 'Cinzel', serif;
+      color: rgba(255, 255, 255, 0.1);
+      z-index: 0;
+      transform: translateY(-50%);
+      letter-spacing: 2px;
+      text-shadow: 
+        -1px -1px 0 rgba(255, 255, 255, 0.05),
+        1px -1px 0 rgba(255, 255, 255, 0.05),
+        -1px 1px 0 rgba(255, 255, 255, 0.05),
+        1px 1px 0 rgba(255, 255, 255, 0.05),
+        0 0 10px rgba(255, 215, 0, 0.1); /* Golden glow */
     }
     
     .download-banner-content {
