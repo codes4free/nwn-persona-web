@@ -1234,6 +1234,12 @@ def debug_info():
 def debug_websocket():
     return render_template('debug_websocket.html')
 
+# Add route for context window documentation
+@app.route('/context-window')
+def context_window_docs():
+    """Render the context window documentation page"""
+    return render_template('context_window.html')
+
 # Health check endpoint
 @app.route('/health')
 def health_check():
@@ -1430,12 +1436,6 @@ def socket_test():
     </body>
     </html>
     '''
-
-# Add route for context window documentation
-@app.route('/context-window')
-def context_window_docs():
-    """Render the context window documentation page"""
-    return render_template('context_window.html')
 
 # Main entry point
 if __name__ == "__main__":
