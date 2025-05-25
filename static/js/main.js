@@ -1,5 +1,14 @@
 // Initialize the Socket.IO connection
-const socket = io({ withCredentials: true, transports: ['websocket'] });
+const socket = io({ 
+    withCredentials: true, 
+    transports: ['polling', 'websocket'],  // Change order to try polling first
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+    timeout: 5000,  // Reduce timeout to 5 seconds
+    forceNew: true,
+    upgrade: false,  // Prevent transport upgrades initially
+    rememberUpgrade: false
+});
 
 // DOM elements
 const characterNameElement = document.getElementById('character-name');
@@ -31,6 +40,10 @@ let lastPlayerName = null;
 let selectedMessage = null;
 let availableCharacters = [];
 let currentMessageData = null;  // Store the current message data for feedback
+let chatHistory = [];  // Store chat history for context window
+
+// Maximum number of messages to keep in chat history
+const MAX_CHAT_HISTORY = 20;
 
 // Helper function to clean em dashes
 function cleanEmDashes(text) {
@@ -41,6 +54,18 @@ function cleanEmDashes(text) {
 socket.on('connect', () => {
     console.log('Connected to server');
     chatMessagesElement.innerHTML = '<p class="text-center text-success">Connected to server</p>';
+    
+    // Update connection status indicator
+    const statusBadge = document.getElementById('socket-status');
+    if (statusBadge) {
+        statusBadge.className = 'badge bg-success';
+        statusBadge.textContent = 'Connected';
+        
+        // Show transport info
+        const transport = socket.io.engine.transport.name;
+        statusBadge.textContent = `Connected (${transport})`;
+    }
+    
     // Request initial data
     fetchCharacters();
 });
@@ -48,11 +73,29 @@ socket.on('connect', () => {
 socket.on('disconnect', () => {
     console.log('Disconnected from server');
     chatMessagesElement.innerHTML += '<p class="text-center text-danger">Disconnected from server</p>';
+    
+    // Update connection status indicator
+    const statusBadge = document.getElementById('socket-status');
+    if (statusBadge) {
+        statusBadge.className = 'badge bg-danger';
+        statusBadge.textContent = 'Disconnected';
+    }
+});
+
+socket.on('connect_error', (error) => {
+    console.error('Connection error:', error);
+    
+    // Update connection status indicator
+    const statusBadge = document.getElementById('socket-status');
+    if (statusBadge) {
+        statusBadge.className = 'badge bg-danger';
+        statusBadge.textContent = 'Error: ' + error.message;
+    }
 });
 
 // Listen for character change
 socket.on('character_change', (data) => {
-    console.log('Character changed:', data);
+    console.log('[DEBUG] character_change event received:', data);
     if (data.character) {
         activeCharacter = data.character;
         updateCharacterDisplay(data.character);
@@ -61,12 +104,19 @@ socket.on('character_change', (data) => {
 
 // Listen for new chat messages
 socket.on('new_message', (data) => {
+    console.log('[DEBUG] new_message event received:', data);
     // Debug diagnostic information
     console.log('%c NEW MESSAGE RECEIVED', 'background: green; color: white; font-size: 16px;');
     console.log('Message data:', data);
     
     // Visual indicators
     document.title = "New message!"; // Change page title to indicate new message
+    
+    // Determine if this message is for the current user/session
+    const currentUser = document.querySelector('.navbar').textContent.trim().replace('Welcome, ', '').replace('Logout', '').trim();
+    const isRelevantToUser = !data.client || data.client === currentUser;
+    
+    console.log('Message client:', data.client, 'Current user:', currentUser, 'Is relevant:', isRelevantToUser);
     
     // Add a global alert for debugging
     let debugAlert = document.createElement('div');
@@ -77,7 +127,8 @@ socket.on('new_message', (data) => {
     debugAlert.style.background = '#ffcc00';
     debugAlert.style.border = '1px solid #cc9900';
     debugAlert.style.zIndex = '9999';
-    debugAlert.textContent = 'New message received at ' + new Date().toLocaleTimeString();
+    debugAlert.textContent = 'New message received at ' + new Date().toLocaleTimeString() + 
+                            (data.client ? ` (from ${data.client})` : '');
     document.body.appendChild(debugAlert);
     
     // Remove the alert after 5 seconds
@@ -151,7 +202,16 @@ socket.on('system_message', (data) => {
 
 // Listen for player messages that may need a response
 socket.on('player_message', (data) => {
+    console.log('[DEBUG] player_message event received:', data);
     console.log('Player message:', data);
+    
+    // Get the current user from the navbar
+    const currentUser = document.querySelector('.navbar').textContent.trim().replace('Welcome, ', '').replace('Logout', '').trim();
+    const isRelevantToUser = !data.client || data.client === currentUser;
+    
+    console.log('Message client:', data.client, 'Current user:', currentUser, 'Is relevant:', isRelevantToUser);
+    
+    // Continue processing even if not for current user, as the client might want to respond to any message
     lastPlayerMessage = data.message;
     lastPlayerName = data.player_name;
     incomingMessageElement.textContent = `${data.player_name}: ${data.message}`;
@@ -264,20 +324,32 @@ generateResponseButton.addEventListener('click', () => {
     
     // Update UI to show the message we're responding to
     incomingMessageElement.innerHTML = `<strong>${messageSource}:</strong> ${messageText}`;
+    
+    // Get conversation context
+    const context = buildConversationContext(messageSource);
+    
+    // Show context indicator if available
+    if (context && context.messages && context.messages.length > 0) {
+        const contextCount = context.messages.length;
+        incomingMessageElement.innerHTML += ` <span class="badge bg-info ms-2" title="${contextCount} messages of context included">+${contextCount} context</span>`;
+    }
+    
     responseOptionsElement.innerHTML = '<p class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div> Generating responses...</p>';
     
     // Log what we're sending
     console.log('Requesting AI response:', {
         character: activeCharacter,
         message: messageText,
-        player_name: messageSource
+        player_name: messageSource,
+        context: context
     });
     
-    // Send the request
+    // Send the request with context
     socket.emit('request_ai_reply', {
         character: activeCharacter,
         message: messageText,
-        player_name: messageSource
+        player_name: messageSource,
+        context: context
     });
 });
 
@@ -518,29 +590,36 @@ function appendChatMessage(message, isSelf, originalMessage) {
     debugIndicator.textContent = ' [msg-id:' + Math.floor(Math.random() * 1000) + ']';
     timestampElement.appendChild(debugIndicator);
     
+    // Extract name and text content for chat history
+    let playerName = isSelf ? activeCharacter : "Player";
+    let textContent = originalMessage || message;
+    
+    // Try to extract player name from HTML content
+    const strongMatch = message.match(/<strong>(.*?)<\/strong>/);
+    if (strongMatch && strongMatch[1]) {
+        playerName = strongMatch[1].replace(':', '');
+    }
+    
+    // Try to extract text content from the message
+    if (strongMatch) {
+        // Remove the strong tag and get the rest of the message
+        textContent = message.replace(/<strong>.*?<\/strong>:?\s*/, '');
+    }
+    
+    // Add to chat history for context
+    addToChatHistory({
+        speaker: playerName,
+        text: textContent,
+        isSelf: isSelf,
+        timestamp: new Date().toISOString()
+    });
+    
     // Check for clickable message (player message)
     try {
         // Make all non-self messages clickable, regardless of whether they have originalMessage
         if (!isSelf) {
             messageElement.classList.add('selectable-message');
             messageElement.style.cursor = 'pointer'; // Add pointer cursor to indicate clickability
-            
-            // Extract name from formatted message or use a fallback
-            let playerName = "Player";
-            let playerText = originalMessage || message;
-            
-            // Try to extract player name from HTML content
-            const strongMatch = message.match(/<strong>(.*?)<\/strong>/);
-            if (strongMatch && strongMatch[1]) {
-                playerName = strongMatch[1].replace(':', '');
-            }
-            
-            // Try to extract text content from the message
-            let textContent = message;
-            if (strongMatch) {
-                // Remove the strong tag and get the rest of the message
-                textContent = message.replace(/<strong>.*?<\/strong>:?\s*/, '');
-            }
             
             // Store that data
             const messageData = {
@@ -572,6 +651,17 @@ function appendChatMessage(message, isSelf, originalMessage) {
                 selectedBadge.className = 'badge bg-primary ms-2';
                 selectedBadge.textContent = 'Selected';
                 incomingMessageElement.appendChild(selectedBadge);
+                
+                // Add context indicator if available
+                const context = buildConversationContext(playerName);
+                if (context && context.messages && context.messages.length > 0) {
+                    const contextCount = context.messages.length;
+                    const contextBadge = document.createElement('span');
+                    contextBadge.className = 'badge bg-info ms-2';
+                    contextBadge.title = `${contextCount} messages of context will be included`;
+                    contextBadge.textContent = `+${contextCount} context`;
+                    incomingMessageElement.appendChild(contextBadge);
+                }
                 
                 // Clear any previous responses when selecting a new message
                 responseOptionsElement.innerHTML = '<p class="text-center text-muted">Click "Generate Response" to create AI replies for this message</p>';
@@ -623,6 +713,7 @@ function displayResponseOptions(responses) {
     const optionsContainer = document.createElement('div');
     optionsContainer.className = 'response-options-container';
     
+    const optionLabels = ['Positive', 'Neutral', 'Negative'];
     responses.forEach((response, index) => {
         // Clean any em dashes from responses
         const cleanedResponse = cleanEmDashes(response);
@@ -633,7 +724,7 @@ function displayResponseOptions(responses) {
             <div class="response-text">${cleanedResponse}</div>
             <div class="response-controls">
                 <div class="d-flex">
-                    <span class="badge bg-secondary me-2">Option ${index + 1}</span>
+                    <span class="badge bg-secondary me-2">${optionLabels[index] || `Option ${index + 1}`}</span>
                     <button class="btn btn-sm btn-outline-success me-1 btn-feedback" data-rating="1" data-index="${index}" title="This response is good"><i class="bi bi-hand-thumbs-up"></i></button>
                     <button class="btn btn-sm btn-outline-danger btn-feedback" data-rating="0" data-index="${index}" title="This response needs improvement"><i class="bi bi-hand-thumbs-down"></i></button>
                 </div>
@@ -789,6 +880,82 @@ function updateFeedbackSummary(data) {
         feedbackProgressElement.classList.remove('bg-success', 'bg-warning');
         feedbackProgressElement.classList.add('bg-danger');
     }
+}
+
+// New functions for context window
+
+/**
+ * Add a message to the chat history
+ * @param {Object} message - The message to add
+ */
+function addToChatHistory(message) {
+    // Add to the beginning so newest are first
+    chatHistory.unshift(message);
+    
+    // Limit the number of messages in history
+    if (chatHistory.length > MAX_CHAT_HISTORY) {
+        chatHistory = chatHistory.slice(0, MAX_CHAT_HISTORY);
+    }
+    
+    console.log('Chat history updated:', chatHistory);
+}
+
+/**
+ * Build conversation context for a message from a specific player
+ * @param {string} playerName - The name of the player to get context for
+ * @returns {Object} - The context object
+ */
+function buildConversationContext(playerName) {
+    if (chatHistory.length === 0) {
+        return { messages: [] };
+    }
+    
+    const context = {
+        messages: [],
+        summary: ""
+    };
+    
+    // Get the last 3-4 messages from this player (character-specific context)
+    const playerMessages = chatHistory
+        .filter(msg => msg.speaker === playerName)
+        .slice(0, 4);
+    
+    // Get the last 2-3 messages from the overall conversation (immediate context)
+    const recentMessages = chatHistory.slice(0, 3);
+    
+    // Combine both sets of messages, removing duplicates
+    const contextMessages = [...recentMessages];
+    
+    playerMessages.forEach(msg => {
+        // Check if this message is already in contextMessages
+        const isDuplicate = contextMessages.some(
+            m => m.speaker === msg.speaker && m.text === msg.text
+        );
+        
+        if (!isDuplicate) {
+            contextMessages.push(msg);
+        }
+    });
+    
+    // Sort by timestamp (oldest first) for logical conversation flow
+    contextMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    
+    // Format messages for context
+    context.messages = contextMessages.map(msg => ({
+        speaker: msg.speaker,
+        text: msg.text
+    }));
+    
+    // Create a brief summary of the conversation
+    if (contextMessages.length > 0) {
+        // Use first and last message to summarize the topic
+        const firstMsg = contextMessages[0];
+        const lastMsg = contextMessages[contextMessages.length - 1];
+        
+        context.summary = `Conversation between ${activeCharacter} and ${playerName} about ${firstMsg.text.substring(0, 30)}...`;
+    }
+    
+    return context;
 }
 
 // Initial load
