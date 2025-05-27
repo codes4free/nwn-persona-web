@@ -11,103 +11,48 @@ CHARACTER_PROFILES_DIR = "character_profiles"
 os.makedirs(CHARACTER_PROFILES_DIR, exist_ok=True)
 
 def load_all_profiles():
-    """Load all character profiles from the profiles directory"""
+    """Load all character profiles from user-specific directories under 'character_profiles'."""
     profiles = {}
-    
-    try:
-        print(f"Loading character profiles from {CHARACTER_PROFILES_DIR}")
-        for profile_file in os.listdir(CHARACTER_PROFILES_DIR):
-            full_path = os.path.join(CHARACTER_PROFILES_DIR, profile_file)
-            
-            # Skip directories and hidden files
-            if os.path.isdir(full_path) or profile_file.startswith('.'):
-                continue
-                
-            # Make sure it's a JSON file
-            if not profile_file.lower().endswith('.json'):
-                print(f"Skipping non-JSON file: {profile_file}")
-                continue
-                
-            try:
-                print(f"Attempting to load: {profile_file}")
-                with open(full_path, 'r', encoding='utf-8') as f:
-                    profile = json.load(f)
-                    if 'name' in profile:
-                        profiles[profile['name']] = profile
-                        print(f"Successfully loaded profile for {profile['name']}")
-                    else:
-                        print(f"Error in profile {profile_file}: Missing 'name' field")
-            except json.JSONDecodeError as e:
-                print(f"Error parsing JSON in {profile_file}: {e}")
-            except Exception as e:
-                print(f"Error loading profile {profile_file}: {e}")
-    except Exception as e:
-        print(f"Error loading character profiles: {e}")
-        
-    print(f"Total profiles loaded: {len(profiles)}")
-    for name in profiles.keys():
-        print(f"  - {name}")
-        
+    base_dir = "character_profiles"
+    if os.path.exists(base_dir):
+        for root, dirs, files in os.walk(base_dir):
+            for file in files:
+                if file.endswith(".json"):
+                    file_path = os.path.join(root, file)
+                    try:
+                        with open(file_path, 'r') as f:
+                            data = json.load(f)
+                        profiles[data['name']] = data
+                    except Exception as e:
+                        continue
     return profiles
 
 def get_profile(character_name):
     """Get a specific character profile"""
-    profile_path = os.path.join(CHARACTER_PROFILES_DIR, f"{character_name.replace(' ', '_')}.json")
-    
-    if not os.path.exists(profile_path):
-        return None
-    
-    try:
-        with open(profile_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"Error reading profile {character_name}: {e}")
-        return None
-
-def save_profile(profile_data):
-    """Save a character profile to disk"""
-    if 'name' not in profile_data:
-        return {"error": "Character name is required"}
-    
-    character_name = profile_data['name']
-    profile_path = os.path.join(CHARACTER_PROFILES_DIR, f"{character_name.replace(' ', '_')}.json")
-    
-    # Ensure the required fields exist
-    required_fields = ['name', 'race', 'class', 'alignment', 'description', 'background', 'appearance', 'traits']
-    for field in required_fields:
-        if field not in profile_data or not profile_data[field]:
-            return {"error": f"Field '{field}' is required"}
-    
-    # Ensure lists are properly formatted
-    list_fields = ['traits', 'mannerisms', 'interaction_constraints']
-    for field in list_fields:
-        if field in profile_data:
-            # If it's a string, split by newlines and filter empty lines
-            if isinstance(profile_data[field], str):
-                profile_data[field] = [line.strip() for line in profile_data[field].split('\n') if line.strip()]
-            
-            # Ensure it's a list
-            if not isinstance(profile_data[field], list):
-                profile_data[field] = []
-    
-    # Ensure dialogue examples are formatted properly
-    if 'dialogue_examples' in profile_data and not isinstance(profile_data['dialogue_examples'], list):
-        if isinstance(profile_data['dialogue_examples'], str):
-            # Try to parse as JSON if it's a string
+    target_name = f"{character_name.replace(' ', '_')}.json"
+    for root, dirs, files in os.walk(CHARACTER_PROFILES_DIR):
+        if target_name in files:
+            profile_path = os.path.join(root, target_name)
             try:
-                profile_data['dialogue_examples'] = json.loads(profile_data['dialogue_examples'])
-            except:
-                profile_data['dialogue_examples'] = []
-        else:
-            profile_data['dialogue_examples'] = []
-    
+                with open(profile_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"Error reading profile {character_name}: {e}")
+                return None
+    return None
+
+def save_profile(data):
+    """Save a character profile in the owner's subdirectory within 'character_profiles'."""
+    owner = data.get('owner', 'default')
+    profiles_dir = os.path.join("character_profiles", owner)
+    os.makedirs(profiles_dir, exist_ok=True)
+    file_path = os.path.join(profiles_dir, f"{data['name']}.json")
     try:
-        with open(profile_path, 'w', encoding='utf-8') as f:
-            json.dump(profile_data, f, indent=2)
-        return {"success": True, "message": f"Profile for {character_name} saved successfully"}
+        with open(file_path, 'w') as f:
+            json.dump(data, f, indent=2)
+        return {"success": True, "message": f"Profile for {data['name']} saved."}
     except Exception as e:
-        print(f"Error saving profile {character_name}: {e}")
-        return {"error": f"Failed to save profile: {str(e)}"}
+        return {"error": str(e)}
 
 def delete_profile(character_name):
     """Delete a character profile"""
@@ -140,7 +85,7 @@ def get_template_profile():
         "appearance": "",
         "traits": [],
         "notes": "",
-        "temperature": 0.7  # Default temperature value for AI responses
+        "temperature": 0.2  # Default Response Temperature for AI responses (0.1-0.4: more focused and deterministic)
     }
 
 def update_profile(character_name, profile_data):
@@ -156,11 +101,15 @@ def update_profile(character_name, profile_data):
     if not character_name:
         return {"error": "Character name is required"}
     
-    profile_path = os.path.join(CHARACTER_PROFILES_DIR, f"{character_name.replace(' ', '_')}.json")
-    if not os.path.exists(profile_path):
+    target_name = f"{character_name.replace(' ', '_')}.json"
+    profile_path = None
+    for root, dirs, files in os.walk(CHARACTER_PROFILES_DIR):
+        if target_name in files:
+            profile_path = os.path.join(root, target_name)
+            break
+    if not profile_path:
         return {"error": "Character profile not found"}
     
-    # Load the existing profile
     try:
         with open(profile_path, 'r', encoding='utf-8') as f:
             existing_profile = json.load(f)

@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Debug</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        #log {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 20px;
+            background-color: #f8f9fa;
+            font-family: monospace;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        .warning { color: orange; }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <h1 class="mb-4">WebSocket Debug Tool</h1>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2>Socket.IO Connection Status</h2>
+            </div>
+            <div class="card-body">
+                <div id="connection-status" class="alert alert-secondary">
+                    Checking connection...
+                </div>
+                <div class="mb-3">
+                    <button id="connect-btn" class="btn btn-primary">Connect</button>
+                    <button id="disconnect-btn" class="btn btn-danger">Disconnect</button>
+                    <button id="check-status-btn" class="btn btn-info">Check Status</button>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Transport:</label>
+                    <div id="transport-info">Unknown</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Ping Status:</label>
+                    <div id="ping-status">Not tested</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Connection Details:</label>
+                    <pre id="connection-details" class="p-2 bg-light">No details available</pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2>Debug Log</h2>
+            </div>
+            <div class="card-body">
+                <div id="log"></div>
+                <button id="clear-log-btn" class="btn btn-secondary">Clear Log</button>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2>Test Events</h2>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="event-name" class="form-label">Event Name:</label>
+                    <input type="text" id="event-name" class="form-control" placeholder="e.g., activate_character">
+                </div>
+                <div class="mb-3">
+                    <label for="event-data" class="form-label">Event Data (JSON):</label>
+                    <textarea id="event-data" class="form-control" rows="3" placeholder='{"character": "Example Character"}'></textarea>
+                </div>
+                <button id="send-event-btn" class="btn btn-success">Send Event</button>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2>Test Message API</h2>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="test-client" class="form-label">Client Username:</label>
+                    <input type="text" id="test-client" class="form-control" placeholder="e.g., fullgazz">
+                </div>
+                <div class="mb-3">
+                    <label for="test-character" class="form-label">Character Name:</label>
+                    <input type="text" id="test-character" class="form-control" placeholder="e.g., Hazel Larsen">
+                </div>
+                <div class="mb-3">
+                    <label for="test-message" class="form-label">Message Content:</label>
+                    <textarea id="test-message" class="form-control" rows="3" placeholder="Hello, this is a test message!"></textarea>
+                </div>
+                <button id="send-test-message-btn" class="btn btn-warning">Send Test Message</button>
+                <div id="test-message-result" class="mt-3" style="display: none;"></div>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <a href="/" class="btn btn-outline-secondary">Back to Main App</a>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script>
+        // DOM Elements
+        const connectionStatus = document.getElementById('connection-status');
+        const transportInfo = document.getElementById('transport-info');
+        const pingStatus = document.getElementById('ping-status');
+        const logElement = document.getElementById('log');
+        const connectBtn = document.getElementById('connect-btn');
+        const disconnectBtn = document.getElementById('disconnect-btn');
+        const clearLogBtn = document.getElementById('clear-log-btn');
+        const eventNameInput = document.getElementById('event-name');
+        const eventDataInput = document.getElementById('event-data');
+        const sendEventBtn = document.getElementById('send-event-btn');
+        const checkStatusBtn = document.getElementById('check-status-btn');
+        const connectionDetails = document.getElementById('connection-details');
+        
+        // Socket.IO instance
+        let socket = null;
+        
+        // Helper functions
+        function logMessage(message, type = 'info') {
+            const timestamp = new Date().toISOString();
+            const logEntry = document.createElement('div');
+            logEntry.className = type;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logElement.appendChild(logEntry);
+            logElement.scrollTop = logElement.scrollHeight; // Auto-scroll to bottom
+        }
+        
+        function updateStatus(connected) {
+            if (connected) {
+                connectionStatus.className = 'alert alert-success';
+                connectionStatus.textContent = 'Connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+            } else {
+                connectionStatus.className = 'alert alert-danger';
+                connectionStatus.textContent = 'Disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                transportInfo.textContent = 'Unknown';
+                pingStatus.textContent = 'Not tested';
+            }
+        }
+        
+        // Socket.IO connection handling
+        function initSocket() {
+            logMessage('Initializing Socket.IO connection...', 'info');
+            
+            try {
+                socket = io({
+                    withCredentials: true,
+                    transports: ['polling', 'websocket'],
+                    reconnectionAttempts: 10,
+                    reconnectionDelay: 1000,
+                    timeout: 5000,  // Reduce timeout to 5 seconds
+                    forceNew: true,
+                    upgrade: false,  // Prevent transport upgrades initially
+                    rememberUpgrade: false
+                });
+                
+                // Connection events
+                socket.on('connect', () => {
+                    logMessage('Socket.IO connected!', 'success');
+                    updateStatus(true);
+                    
+                    // Display transport info
+                    transportInfo.textContent = socket.io.engine.transport.name;
+                    logMessage(`Transport: ${socket.io.engine.transport.name}`, 'info');
+                    
+                    // Test ping
+                    const pingStart = Date.now();
+                    socket.emit('ping', () => {
+                        const pingTime = Date.now() - pingStart;
+                        pingStatus.textContent = `${pingTime}ms`;
+                        logMessage(`Ping time: ${pingTime}ms`, 'info');
+                    });
+                    
+                    // Log all transport upgrades
+                    socket.io.engine.on('upgrade', (transport) => {
+                        transportInfo.textContent = transport.name;
+                        logMessage(`Transport upgraded to: ${transport.name}`, 'success');
+                    });
+                });
+                
+                socket.on('connect_error', (error) => {
+                    logMessage(`Connection error: ${error.message}`, 'error');
+                    updateStatus(false);
+                });
+                
+                socket.on('disconnect', (reason) => {
+                    logMessage(`Disconnected: ${reason}`, 'warning');
+                    updateStatus(false);
+                });
+                
+                // Listen for various events from server
+                socket.on('character_change', (data) => {
+                    logMessage(`Event 'character_change' received: ${JSON.stringify(data)}`, 'success');
+                });
+                
+                socket.on('system_message', (data) => {
+                    logMessage(`Event 'system_message' received: ${JSON.stringify(data)}`, 'success');
+                });
+                
+                // Generic catch-all for debugging
+                const originalOnEvent = socket.onevent;
+                socket.onevent = function(packet) {
+                    const eventName = packet.data[0];
+                    const eventData = packet.data[1];
+                    
+                    if (!['connect', 'disconnect', 'connect_error', 'character_change', 'system_message'].includes(eventName)) {
+                        logMessage(`Event '${eventName}' received: ${JSON.stringify(eventData)}`, 'info');
+                    }
+                    
+                    originalOnEvent.call(this, packet);
+                };
+            } catch (err) {
+                logMessage(`Error initializing Socket.IO: ${err.message}`, 'error');
+                updateStatus(false);
+            }
+        }
+        
+        // Button handlers
+        connectBtn.addEventListener('click', () => {
+            if (socket && socket.connected) {
+                logMessage('Already connected!', 'warning');
+                return;
+            }
+            
+            initSocket();
+        });
+        
+        disconnectBtn.addEventListener('click', () => {
+            if (socket) {
+                socket.disconnect();
+                logMessage('Manually disconnected', 'info');
+            }
+        });
+        
+        clearLogBtn.addEventListener('click', () => {
+            logElement.innerHTML = '';
+            logMessage('Log cleared', 'info');
+        });
+        
+        sendEventBtn.addEventListener('click', () => {
+            if (!socket || !socket.connected) {
+                logMessage('Socket not connected, cannot send event', 'error');
+                return;
+            }
+            
+            const eventName = eventNameInput.value.trim();
+            if (!eventName) {
+                logMessage('Event name cannot be empty', 'error');
+                return;
+            }
+            
+            let eventData = {};
+            try {
+                const dataText = eventDataInput.value.trim();
+                if (dataText) {
+                    eventData = JSON.parse(dataText);
+                }
+                
+                logMessage(`Sending event '${eventName}' with data: ${JSON.stringify(eventData)}`, 'info');
+                socket.emit(eventName, eventData);
+            } catch (err) {
+                logMessage(`Error parsing event data: ${err.message}`, 'error');
+            }
+        });
+        
+        checkStatusBtn.addEventListener('click', () => {
+            if (!socket) {
+                logMessage('Socket not initialized', 'error');
+                return;
+            }
+            
+            // Check connection status and details
+            const details = {
+                connected: socket.connected,
+                disconnected: socket.disconnected,
+                id: socket.id || 'Not available',
+                transport: socket.io && socket.io.engine ? socket.io.engine.transport.name : 'Not available',
+                transportOptions: socket.io && socket.io.opts ? socket.io.opts.transports : [],
+                hostname: window.location.hostname,
+                port: window.location.port,
+                protocol: window.location.protocol,
+                userAgent: navigator.userAgent,
+                timestamp: new Date().toISOString()
+            };
+            
+            // Display connection details
+            connectionDetails.textContent = JSON.stringify(details, null, 2);
+            
+            // Log details
+            logMessage('Connection details checked', 'info');
+            
+            // Try to ping the server if connected
+            if (socket.connected) {
+                const pingStart = Date.now();
+                socket.emit('ping', () => {
+                    const pingTime = Date.now() - pingStart;
+                    pingStatus.textContent = `${pingTime}ms`;
+                    logMessage(`Ping time: ${pingTime}ms`, 'info');
+                });
+            }
+        });
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            logMessage('Debug page loaded', 'info');
+            updateStatus(false);
+            
+            // Auto-connect after a short delay
+            setTimeout(() => {
+                if (!socket) {
+                    connectBtn.click();
+                }
+            }, 500);
+        });
+        
+        // Test message form handling
+        const testClientInput = document.getElementById('test-client');
+        const testCharacterInput = document.getElementById('test-character');
+        const testMessageInput = document.getElementById('test-message');
+        const sendTestMessageBtn = document.getElementById('send-test-message-btn');
+        const testMessageResult = document.getElementById('test-message-result');
+        
+        sendTestMessageBtn.addEventListener('click', () => {
+            const client = testClientInput.value.trim() || 'test_client';
+            const character = testCharacterInput.value.trim() || 'Test Character';
+            const message = testMessageInput.value.trim();
+            
+            if (!message) {
+                testMessageResult.innerHTML = '<div class="alert alert-danger">Message content cannot be empty</div>';
+                testMessageResult.style.display = 'block';
+                return;
+            }
+            
+            // Show loading state
+            sendTestMessageBtn.disabled = true;
+            sendTestMessageBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Sending...';
+            testMessageResult.innerHTML = '<div class="alert alert-info">Sending test message...</div>';
+            testMessageResult.style.display = 'block';
+            
+            // Send the test message via API
+            fetch('/debug_send_message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    client: client,
+                    character: character,
+                    message: message
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    testMessageResult.innerHTML = '<div class="alert alert-success">Test message sent successfully!</div>';
+                    logMessage(`Test message sent as [${client}] ${character}: ${message}`, 'success');
+                    
+                    // Clear the message input
+                    testMessageInput.value = '';
+                } else {
+                    testMessageResult.innerHTML = `<div class="alert alert-danger">Error: ${data.error || 'Unknown error'}</div>`;
+                    logMessage(`Error sending test message: ${data.error || 'Unknown error'}`, 'error');
+                }
+            })
+            .catch(error => {
+                testMessageResult.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+                logMessage(`Error sending test message: ${error.message}`, 'error');
+            })
+            .finally(() => {
+                // Reset button state
+                sendTestMessageBtn.disabled = false;
+                sendTestMessageBtn.textContent = 'Send Test Message';
+            });
+        });
+    </script>
+</body>
+</html> 

@@ -74,17 +74,20 @@ socketio = SocketIO(
     app, 
     async_mode='eventlet', 
     cors_allowed_origins="*", 
-    manage_session=True,
-    ping_timeout=10,  # Reduce ping timeout
-    ping_interval=5,  # More frequent pings
+    manage_session=False,
+    ping_timeout=20,
+    ping_interval=10,
     logger=True,
     engineio_logger=True,
-    always_connect=True,  # Allow connections even if the initial transport isn't available
-    transports=['polling', 'websocket'],  # Explicitly specify available transports, with polling first
-    cookie=False,  # Disable cookies to avoid CORS issues with credentials
-    upgrade_timeout=10000,  # Reduce upgrade timeout
-    max_http_buffer_size=1e7,  # Increase buffer size
-    http_compression=True  # Enable compression
+    always_connect=True,
+    transports=['polling', 'websocket'],
+    cookie=False,
+    upgrade_timeout=20000,
+    max_http_buffer_size=1e7,
+    http_compression=True,
+    allow_upgrades=False,  # Disable transport upgrades to prevent session issues
+    json=None,  # Don't rely on a specific JSON implementation
+    max_cookie_size=0  # Disable cookie size limiting
 )
 
 #####################################
@@ -772,15 +775,52 @@ def upload_character_json():
 # Socket.IO events
 @socketio.on('connect')
 def connect(auth):
-    """Handle client connection"""
-    if 'user' in session:
-        room = session['user']
-        join_room(room)
-        online_users.add(session['user'])
-        socketio.emit('active_users', list(online_users), room=room)
-    emit('connection_status', {'status': 'connected'})
-    if session.get('active_character'):
-        emit('character_change', {'character': session.get('active_character')})
+    """Handle client connection with more reliable approach"""
+    try:
+        # Get client IP for logging
+        client_ip = request.remote_addr
+        logger.info(f"Client connecting from IP: {client_ip}")
+        
+        # Store connection info in a more reliable way
+        # Use socket ID as identifier instead of session
+        socket_id = request.sid
+        
+        # Create a default room based on the client's IP or socket ID
+        # This avoids relying on Flask sessions
+        room_name = f"room_{socket_id}"
+        join_room(room_name)
+        logger.info(f"Client {socket_id} joined room {room_name}")
+        
+        # Check if user credentials are provided in auth param
+        username = None
+        if auth and isinstance(auth, dict) and 'username' in auth:
+            username = auth['username']
+            logger.info(f"User identified as: {username}")
+            if username:
+                online_users.add(username)
+                socketio.emit('active_users', list(online_users))
+        
+        # Always emit connection status to this specific client
+        emit('connection_status', {
+            'status': 'connected',
+            'client_ip': client_ip,
+            'socket_id': socket_id,
+            'username': username
+        })
+        
+        # If there's session data, try to use it as fallback
+        # But don't rely on it for core functionality
+        try:
+            if 'user' in session and session.get('active_character'):
+                emit('character_change', {'character': session.get('active_character')})
+        except Exception as e:
+            logger.warning(f"Session access failed (non-critical): {e}")
+            
+        return True  # Return True to approve the connection
+    except Exception as e:
+        logger.error(f"Error in connection handler: {e}")
+        # Still approve the connection even if there was an error
+        return True
 
 @socketio.on('disconnect')
 def disconnect():
@@ -1240,6 +1280,18 @@ def context_window_docs():
     """Render the context window documentation page"""
     return render_template('context_window.html')
 
+# Add route for SVG test
+@app.route('/svg-test')
+def svg_test():
+    """Render the SVG test page"""
+    return render_template('svg_test.html')
+
+# Add route for embedded SVG version
+@app.route('/context-window-embed')
+def context_window_embed():
+    """Render the context window documentation with embedded SVG"""
+    return render_template('context_window_embed.html')
+
 # Health check endpoint
 @app.route('/health')
 def health_check():
@@ -1248,7 +1300,7 @@ def health_check():
         'status': 'ok',
         'timestamp': datetime.datetime.now().isoformat(),
         'socket_io_enabled': True,
-        'transport_modes': socketio.transport_methods
+        'transport_modes': ['polling', 'websocket']  # Hardcoded to match initialization
     })
 
 # Socket.IO specific health check endpoint that doesn't require auth
@@ -1256,22 +1308,23 @@ def health_check():
 def socket_health_check():
     """Socket.IO specific health check that doesn't require authentication"""
     # Create a simple ping event handler if it doesn't exist
-    if not hasattr(socketio.handlers[0], 'ping_pong_handler_added'):
+    try:
         @socketio.on('socket_ping')
         def handle_socket_ping():
             emit('socket_pong', {'time': datetime.datetime.now().isoformat()})
-        socketio.handlers[0].ping_pong_handler_added = True
+    except Exception as e:
+        logger.error(f"Error setting up socket_ping handler: {e}")
         
+    # Get basic info that should be available, or provide defaults
+    async_mode = getattr(socketio, 'async_mode', 'eventlet')
+    
+    # Return a simplified health check response
     return jsonify({
         'status': 'ok',
         'timestamp': datetime.datetime.now().isoformat(),
-        'socket_io_version': socketio.socketio_version,
-        'engineio_version': socketio.server.eio.engineio_version,
-        'async_mode': socketio.async_mode,
-        'cors_allowed_origins': socketio.server.cors_allowed_origins,
-        'ping_interval': socketio.server.eio.ping_interval,
-        'ping_timeout': socketio.server.eio.ping_timeout,
-        'transports': socketio.transports
+        'async_mode': async_mode,
+        'transports': ['polling', 'websocket'],  # Hardcoded to match initialization
+        'socket_io_enabled': True
     })
 
 # Test message endpoint for debugging
@@ -1317,7 +1370,7 @@ def socket_test():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Basic Socket.IO Test</title>
+        <title>Socket.IO Test - External Mode</title>
         <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
         <style>
             body { font-family: Arial, sans-serif; margin: 20px; }
@@ -1326,14 +1379,29 @@ def socket_test():
             .error { background-color: #f2dede; color: #a94442; }
             .pending { background-color: #fcf8e3; color: #8a6d3b; }
             pre { background-color: #f5f5f5; padding: 10px; overflow: auto; }
+            table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f5f5f5; }
         </style>
     </head>
     <body>
-        <h1>Basic Socket.IO Test</h1>
-        <div id="status" class="pending">Connecting...</div>
-        <button id="connect">Connect</button>
-        <button id="disconnect">Disconnect</button>
-        <button id="ping">Ping Server</button>
+        <h1>Socket.IO External Connection Test</h1>
+        <div id="status" class="pending">Initializing...</div>
+        <div>
+            <button id="connect">Connect</button>
+            <button id="disconnect">Disconnect</button>
+            <button id="ping">Ping Server</button>
+            <button id="polling">Use Polling Only</button>
+        </div>
+        <h2>Connection Details</h2>
+        <table id="connectionDetails">
+            <tr><th>Property</th><th>Value</th></tr>
+            <tr><td>Socket ID</td><td id="socketId">-</td></tr>
+            <tr><td>Connected</td><td id="isConnected">No</td></tr>
+            <tr><td>Transport</td><td id="transport">-</td></tr>
+            <tr><td>Client IP</td><td id="clientIp">-</td></tr>
+        </table>
+        
         <h2>Connection Log</h2>
         <pre id="log"></pre>
         
@@ -1343,34 +1411,50 @@ def socket_test():
             const connectBtn = document.getElementById('connect');
             const disconnectBtn = document.getElementById('disconnect');
             const pingBtn = document.getElementById('ping');
+            const pollingBtn = document.getElementById('polling');
+            
+            // Connection details elements
+            const socketIdEl = document.getElementById('socketId');
+            const isConnectedEl = document.getElementById('isConnected');
+            const transportEl = document.getElementById('transport');
+            const clientIpEl = document.getElementById('clientIp');
             
             // Log helper
             function log(msg, type) {
                 const timestamp = new Date().toISOString();
-                logEl.textContent += `[${timestamp}] ${msg}\\n`;
+                logEl.textContent = `[${timestamp}] ${msg}\\n` + logEl.textContent;
                 console.log(`[${type || 'info'}] ${msg}`);
             }
             
             let socket;
+            let usePollingOnly = false;
             
             function initSocket() {
-                log('Initializing Socket.IO with minimal config...');
+                log('Initializing Socket.IO connection...');
                 statusEl.className = 'pending';
                 statusEl.textContent = 'Connecting...';
                 
-                // Most minimal Socket.IO config
-                socket = io({
-                    transports: ['polling'],
-                    reconnectionAttempts: 3,
-                    timeout: 5000,
+                // Extremely simplified config for external connections
+                const opts = {
+                    transports: usePollingOnly ? ['polling'] : ['polling', 'websocket'],
                     forceNew: true,
-                    upgrade: false
-                });
+                    timeout: 20000,
+                    auth: { username: 'external_user' }
+                };
+                
+                log(`Using transports: ${opts.transports.join(', ')}`);
+                
+                // Create socket
+                socket = io(opts);
                 
                 socket.on('connect', () => {
                     log('Connected!', 'success');
                     statusEl.className = 'success';
                     statusEl.textContent = 'Connected';
+                    socketIdEl.textContent = socket.id || '-';
+                    isConnectedEl.textContent = 'Yes';
+                    transportEl.textContent = socket.io.engine.transport.name || '-';
+                    
                     connectBtn.disabled = true;
                     disconnectBtn.disabled = false;
                     pingBtn.disabled = false;
@@ -1380,6 +1464,10 @@ def socket_test():
                     log(`Disconnected: ${reason}`, 'error');
                     statusEl.className = 'error';
                     statusEl.textContent = `Disconnected: ${reason}`;
+                    socketIdEl.textContent = '-';
+                    isConnectedEl.textContent = 'No';
+                    transportEl.textContent = '-';
+                    
                     connectBtn.disabled = false;
                     disconnectBtn.disabled = true;
                     pingBtn.disabled = true;
@@ -1391,11 +1479,17 @@ def socket_test():
                     statusEl.textContent = `Error: ${error.message}`;
                 });
                 
+                socket.on('connection_status', (data) => {
+                    log(`Server confirmed connection: ${JSON.stringify(data)}`, 'success');
+                    if (data.client_ip) {
+                        clientIpEl.textContent = data.client_ip;
+                    }
+                });
+                
                 socket.on('socket_pong', (data) => {
                     log(`Received pong: ${JSON.stringify(data)}`, 'success');
                 });
                 
-                // Automatically try to connect
                 return socket;
             }
             
@@ -1424,11 +1518,25 @@ def socket_test():
                 }
             });
             
+            pollingBtn.addEventListener('click', () => {
+                usePollingOnly = !usePollingOnly;
+                pollingBtn.textContent = usePollingOnly ? 'Use All Transports' : 'Use Polling Only';
+                log(`Set transport mode to: ${usePollingOnly ? 'polling only' : 'all available'}`);
+                
+                if (socket && socket.connected) {
+                    log('Disconnecting to apply new transport settings...');
+                    socket.disconnect();
+                    setTimeout(() => {
+                        socket = initSocket();
+                    }, 500);
+                }
+            });
+            
             // Start on page load
             disconnectBtn.disabled = true;
             pingBtn.disabled = true;
             
-            // Initialize on page load with a delay
+            // Initialize with a slight delay
             setTimeout(() => {
                 socket = initSocket();
             }, 500);
@@ -1436,6 +1544,209 @@ def socket_test():
     </body>
     </html>
     '''
+
+@app.route('/external_test')
+def external_test():
+    """Ultra-simplified Socket.IO test page for external connections with no dependencies"""
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>External Connection Test</title>
+        <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; padding: 20px; }
+            #log { background-color: #f5f5f5; padding: 10px; height: 300px; overflow: auto; margin-top: 20px; font-family: monospace; }
+            button { padding: 10px; margin: 5px; }
+            .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+            .success { background-color: #d4edda; color: #155724; }
+            .error { background-color: #f8d7da; color: #721c24; }
+            .warning { background-color: #fff3cd; color: #856404; }
+        </style>
+    </head>
+    <body>
+        <h1>External Connection Test</h1>
+        <div id="status" class="status warning">Initializing...</div>
+        
+        <div>
+            <button id="pollingBtn">Connect (Polling Only)</button>
+            <button id="wsBtn">Connect (WebSocket)</button>
+            <button id="disconnectBtn">Disconnect</button>
+            <button id="pingBtn">Send Ping</button>
+            <button id="clearBtn">Clear Log</button>
+        </div>
+        
+        <div id="log"></div>
+        
+        <script>
+            // Elements
+            const statusEl = document.getElementById('status');
+            const logEl = document.getElementById('log');
+            const pollingBtn = document.getElementById('pollingBtn');
+            const wsBtn = document.getElementById('wsBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            const pingBtn = document.getElementById('pingBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            
+            // Logging
+            function log(message, type = 'info') {
+                const now = new Date().toISOString();
+                const entry = document.createElement('div');
+                entry.textContent = `[${now}] ${message}`;
+                entry.className = type;
+                logEl.insertBefore(entry, logEl.firstChild);
+                console.log(`[${type}] ${message}`);
+            }
+            
+            // Socket reference
+            let socket = null;
+            
+            // Connect function with specific transport
+            function connect(transportType) {
+                // Disconnect existing socket if any
+                if (socket) {
+                    log('Disconnecting existing socket', 'warning');
+                    socket.disconnect();
+                    socket = null;
+                }
+                
+                // Update status
+                statusEl.className = 'status warning';
+                statusEl.textContent = 'Connecting...';
+                
+                // Log connection attempt
+                log(`Attempting connection with transport: ${transportType}`, 'info');
+                
+                // Basic configuration - absolute minimum
+                const opts = {
+                    transports: transportType === 'polling' ? ['polling'] : ['websocket', 'polling'],
+                    forceNew: true,
+                    reconnection: false,
+                    timeout: 10000
+                };
+                
+                // Create socket - use '/' as namespace, not the full URL
+                try {
+                    // Just use empty URL to connect to current server
+                    socket = io('', opts);
+                    
+                    // Connection events
+                    socket.on('connect', () => {
+                        log(`Connected successfully! ID: ${socket.id}`, 'success');
+                        statusEl.className = 'status success';
+                        statusEl.textContent = `Connected (${socket.io.engine.transport.name})`;
+                        
+                        // Update buttons
+                        pollingBtn.disabled = true;
+                        wsBtn.disabled = true;
+                        disconnectBtn.disabled = false;
+                        pingBtn.disabled = false;
+                    });
+                    
+                    socket.on('disconnect', (reason) => {
+                        log(`Disconnected: ${reason}`, 'error');
+                        statusEl.className = 'status error';
+                        statusEl.textContent = `Disconnected: ${reason}`;
+                        
+                        // Update buttons
+                        pollingBtn.disabled = false;
+                        wsBtn.disabled = false;
+                        disconnectBtn.disabled = true;
+                        pingBtn.disabled = true;
+                    });
+                    
+                    socket.on('connect_error', (error) => {
+                        log(`Connection error: ${error.message}`, 'error');
+                        statusEl.className = 'status error';
+                        statusEl.textContent = `Error: ${error.message}`;
+                    });
+                    
+                    socket.on('error', (error) => {
+                        log(`Socket error: ${error}`, 'error');
+                    });
+                    
+                    // Custom event listeners
+                    socket.on('connection_status', (data) => {
+                        log(`Server sent status: ${JSON.stringify(data)}`, 'info');
+                    });
+                    
+                    socket.on('socket_pong', (data) => {
+                        log(`Received pong: ${JSON.stringify(data)}`, 'success');
+                    });
+                    
+                    // Log transport type
+                    log(`Using transport config: ${JSON.stringify(opts.transports)}`, 'info');
+                    
+                } catch (e) {
+                    log(`Error creating socket: ${e.message}`, 'error');
+                    statusEl.className = 'status error';
+                    statusEl.textContent = `Connection error: ${e.message}`;
+                }
+            }
+            
+            // Button event listeners
+            pollingBtn.addEventListener('click', () => connect('polling'));
+            wsBtn.addEventListener('click', () => connect('websocket'));
+            
+            disconnectBtn.addEventListener('click', () => {
+                if (socket) {
+                    socket.disconnect();
+                    log('Manually disconnected', 'warning');
+                }
+            });
+            
+            pingBtn.addEventListener('click', () => {
+                if (socket && socket.connected) {
+                    log('Sending ping...', 'info');
+                    socket.emit('socket_ping');
+                } else {
+                    log('Not connected, cannot ping', 'error');
+                }
+            });
+            
+            clearBtn.addEventListener('click', () => {
+                logEl.innerHTML = '';
+                log('Log cleared', 'info');
+            });
+            
+            // Initial setup
+            disconnectBtn.disabled = true;
+            pingBtn.disabled = true;
+            log('Page loaded. Click a connect button to start.', 'info');
+        </script>
+    </body>
+    </html>
+    '''
+
+@app.route('/api/external/ping', methods=['GET'])
+def external_ping():
+    """Simple endpoint for external clients to test connectivity with no auth"""
+    return jsonify({
+        'status': 'ok',
+        'timestamp': datetime.datetime.now().isoformat(),
+        'message': 'External API endpoint is working',
+        'server_info': {
+            'socketio_enabled': True,
+            'ip': request.remote_addr,
+            'cors_allowed': '*'
+        }
+    })
+
+# --- New Route for Downloading nwnclientlog ---
+@app.route('/download/nwnclientlog')
+def download_nwnclientlog():
+    import os
+    from flask import send_from_directory, abort
+    # Define the directory where the log file is stored (updated to use the 'download' folder)
+    log_directory = os.path.join(app.root_path, 'download')
+    # Define the log filename; adjust the filename if needed
+    log_filename = 'NWN Log Client.zip'
+    try:
+        return send_from_directory(log_directory, log_filename, as_attachment=True)
+    except FileNotFoundError:
+        abort(404)
+
+# --- End of nwnclientlog download route ---
 
 # Main entry point
 if __name__ == "__main__":

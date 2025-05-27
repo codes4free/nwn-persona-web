@@ -50,7 +50,7 @@ For further information or to schedule a demo, please email [ffmtelecom@gmail.co
 
 ## License
 
-© 2025 D6LAB. All rights reserved.
+© 2025 D6LAB. All rights reserved. 
 
 ## Security and Connectivity
 
