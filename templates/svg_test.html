@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG Test</title>
+    <script>
+        window.onload = function() {
+            const img = document.getElementById('svg-image');
+            img.onerror = function() {
+                document.getElementById('error-message').textContent = 'Error loading SVG: ' + img.src;
+                console.error('Error loading SVG:', img.src);
+            };
+            img.onload = function() {
+                document.getElementById('success-message').textContent = 'SVG loaded successfully!';
+                console.log('SVG loaded successfully:', img.src);
+            };
+        };
+    </script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>SVG Loading Test</h1>
+    <div id="error-message" class="error"></div>
+    <div id="success-message" class="success"></div>
+    
+    <div style="margin: 20px 0;">
+        <h3>Direct SVG Tag:</h3>
+        <object data="{{ url_for('static', filename='img/context-window-diagram.svg') }}" type="image/svg+xml" width="500" height="300">
+            Your browser does not support SVG
+        </object>
+    </div>
+    
+    <div style="margin: 20px 0;">
+        <h3>Image Tag:</h3>
+        <img id="svg-image" src="{{ url_for('static', filename='img/context-window-diagram.svg') }}" alt="Context Window Diagram" style="max-width: 500px;">
+    </div>
+</body>
+</html> 

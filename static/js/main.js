@@ -1,7 +1,7 @@
 // Initialize the Socket.IO connection
 const socket = io({ 
     withCredentials: true, 
-    transports: ['polling', 'websocket'],  // Change order to try polling first
+    transports: ['websocket'],  // Forcing WebSocket transport to avoid xhr poll errors
     reconnectionAttempts: 10,
     reconnectionDelay: 1000,
     timeout: 5000,  // Reduce timeout to 5 seconds
@@ -40,7 +40,8 @@ let lastPlayerName = null;
 let selectedMessage = null;
 let availableCharacters = [];
 let currentMessageData = null;  // Store the current message data for feedback
-let chatHistory = [];  // Store chat history for context window
+let userChatHistories = {};     // Store chat histories by user
+let currentUser = '';           // Current user from session
 
 // Maximum number of messages to keep in chat history
 const MAX_CHAT_HISTORY = 20;
@@ -64,6 +65,16 @@ socket.on('connect', () => {
         // Show transport info
         const transport = socket.io.engine.transport.name;
         statusBadge.textContent = `Connected (${transport})`;
+    }
+    
+    // Get current user from navbar
+    const navbarText = document.querySelector('.navbar').textContent.trim();
+    currentUser = navbarText.replace('Welcome, ', '').replace('Logout', '').trim();
+    console.log('Current user identified as:', currentUser);
+    
+    // Initialize user chat history if not exists
+    if (!userChatHistories[currentUser]) {
+        userChatHistories[currentUser] = [];
     }
     
     // Request initial data
@@ -113,11 +124,12 @@ socket.on('new_message', (data) => {
     document.title = "New message!"; // Change page title to indicate new message
     
     // Determine if this message is for the current user/session
-    const currentUser = document.querySelector('.navbar').textContent.trim().replace('Welcome, ', '').replace('Logout', '').trim();
     const isRelevantToUser = !data.client || data.client === currentUser;
     
     console.log('Message client:', data.client, 'Current user:', currentUser, 'Is relevant:', isRelevantToUser);
     
+    // Only process messages relevant to this user
+    if (isRelevantToUser) {
     // Add a global alert for debugging
     let debugAlert = document.createElement('div');
     debugAlert.style.position = 'fixed';
@@ -127,8 +139,8 @@ socket.on('new_message', (data) => {
     debugAlert.style.background = '#ffcc00';
     debugAlert.style.border = '1px solid #cc9900';
     debugAlert.style.zIndex = '9999';
-    debugAlert.textContent = 'New message received at ' + new Date().toLocaleTimeString() + 
-                            (data.client ? ` (from ${data.client})` : '');
+        debugAlert.textContent = 'New message received at ' + new Date().toLocaleTimeString() + 
+                                (data.client ? ` (from ${data.client})` : '');
     document.body.appendChild(debugAlert);
     
     // Remove the alert after 5 seconds
@@ -151,6 +163,29 @@ socket.on('new_message', (data) => {
                 return;
             }
         }
+            
+            // Extract the speaker and text content for chat history
+            let speakerName = "Unknown";
+            let textContent = data.original_message || data.message;
+            
+            // Try to extract speaker from the message
+            const strongMatch = data.message.match(/<strong>(.*?)<\/strong>/);
+            if (strongMatch) {
+                speakerName = strongMatch[1].replace(':', '');
+                
+                // Remove the strong tag to get the text content
+                textContent = data.message.replace(/<strong>.*?<\/strong>:?\s*/, '');
+            }
+            
+            // Add message to chat history
+            if (!data.is_own) {
+                addToChatHistory({
+                    speaker: speakerName,
+                    text: data.original_message || textContent,
+                    isSelf: data.is_own,
+                    timestamp: new Date().toISOString()
+                });
+            }
         
         appendChatMessage(data.message, data.is_own, data.original_message);
         console.log('Message appended to chat');
@@ -176,6 +211,7 @@ socket.on('new_message', (data) => {
             }
         } catch (fallbackError) {
             console.error('Even fallback insertion failed:', fallbackError);
+            }
         }
     }
 });
@@ -205,8 +241,7 @@ socket.on('player_message', (data) => {
     console.log('[DEBUG] player_message event received:', data);
     console.log('Player message:', data);
     
-    // Get the current user from the navbar
-    const currentUser = document.querySelector('.navbar').textContent.trim().replace('Welcome, ', '').replace('Logout', '').trim();
+    // Check if this message is relevant to the current user
     const isRelevantToUser = !data.client || data.client === currentUser;
     
     console.log('Message client:', data.client, 'Current user:', currentUser, 'Is relevant:', isRelevantToUser);
@@ -222,6 +257,16 @@ socket.on('player_message', (data) => {
         message: data.message,
         player_name: data.player_name
     };
+    
+    // Add to chat history if relevant to this user
+    if (isRelevantToUser) {
+        addToChatHistory({
+            speaker: data.player_name,
+            text: data.message,
+            isSelf: false,
+            timestamp: new Date().toISOString()
+        });
+    }
 });
 
 // Listen for AI generated responses
@@ -331,7 +376,7 @@ generateResponseButton.addEventListener('click', () => {
     // Show context indicator if available
     if (context && context.messages && context.messages.length > 0) {
         const contextCount = context.messages.length;
-        incomingMessageElement.innerHTML += ` <span class="badge bg-info ms-2" title="${contextCount} messages of context included">+${contextCount} context</span>`;
+        incomingMessageElement.innerHTML += ` <span class="badge bg-info ms-2" title="${contextCount} messages of context from ${currentUser}'s session included">+${contextCount} context (${currentUser})</span>`;
     }
     
     responseOptionsElement.innerHTML = '<p class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div> Generating responses...</p>';
@@ -497,6 +542,9 @@ function activateCharacter(characterName) {
     // Fetch character details
     fetchCharacterDetails(characterName);
     
+    // Load chat history for this character
+    loadChatHistory(characterName);
+    
     // Fetch feedback summary
     fetchFeedbackSummary(characterName);
 }
@@ -551,68 +599,48 @@ function fetchCharacterDetails(characterName) {
 }
 
 function appendChatMessage(message, isSelf, originalMessage) {
-    console.log('appendChatMessage called with:', { message, isSelf, originalMessage });
+    console.log('Appending message:', {message, isSelf, originalMessage});
     
-    // Get the chat container element (again, to be sure)
-    const chatContainer = document.getElementById('chat-messages');
+    try {
+        const chatContainer = chatMessagesElement;
     if (!chatContainer) {
-        console.error('Chat container not found!');
+            console.error('Chat container not found');
         return null;
     }
     
-    // Force clear any "waiting for messages" placeholder
-    const waitingMsg = chatContainer.querySelector('.text-muted');
-    if (waitingMsg) {
-        console.log('Clearing waiting message placeholder');
-        chatContainer.innerHTML = '';
-    }
+        const messageElement = document.createElement('div');
+        messageElement.className = isSelf ? 'message message-self' : 'message message-other';
+        
+        // Clean HTML for security
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = message;
+        
+        // Find the player name in the message
+        let playerName = "Unknown";
+        let textContent = originalMessage || message;
     
-    const wasAtBottom = chatContainer.scrollHeight - chatContainer.clientHeight <= chatContainer.scrollTop + 10;
-    
-    // Create message element
-    const messageElement = document.createElement('div');
-    messageElement.className = `message ${isSelf ? 'message-self' : 'message-other'}`;
-    
-    // Set message content - DON'T use textContent as it removes HTML formatting
+        // Try to extract player name from message - specifically looking for the <strong>Name:</strong> pattern
+        const strongMatch = message.match(/<strong>(.*?)<\/strong>/);
+        if (strongMatch) {
+            playerName = strongMatch[1].replace(':', '');
+        }
+        
+        // Try to extract text content from the message
+        if (strongMatch) {
+            // Remove the strong tag and get the rest of the message
+            textContent = message.replace(/<strong>.*?<\/strong>:?\s*/, '');
+        }
+        
+        // Add message HTML
     messageElement.innerHTML = message;
     
     // Add timestamp
     const timestampElement = document.createElement('div');
     timestampElement.className = 'message-time';
-    const timestamp = new Date().toLocaleTimeString();
-    timestampElement.textContent = timestamp;
+        timestampElement.textContent = new Date().toLocaleTimeString();
     messageElement.appendChild(timestampElement);
     
-    // Add a debug indicator so we can verify the message was actually added
-    const debugIndicator = document.createElement('span');
-    debugIndicator.style.fontSize = '8px';
-    debugIndicator.style.color = '#999';
-    debugIndicator.textContent = ' [msg-id:' + Math.floor(Math.random() * 1000) + ']';
-    timestampElement.appendChild(debugIndicator);
-    
-    // Extract name and text content for chat history
-    let playerName = isSelf ? activeCharacter : "Player";
-    let textContent = originalMessage || message;
-    
-    // Try to extract player name from HTML content
-    const strongMatch = message.match(/<strong>(.*?)<\/strong>/);
-    if (strongMatch && strongMatch[1]) {
-        playerName = strongMatch[1].replace(':', '');
-    }
-    
-    // Try to extract text content from the message
-    if (strongMatch) {
-        // Remove the strong tag and get the rest of the message
-        textContent = message.replace(/<strong>.*?<\/strong>:?\s*/, '');
-    }
-    
-    // Add to chat history for context
-    addToChatHistory({
-        speaker: playerName,
-        text: textContent,
-        isSelf: isSelf,
-        timestamp: new Date().toISOString()
-    });
+        // Skip adding to chat history here since we're now handling it in the event listeners
     
     // Check for clickable message (player message)
     try {
@@ -651,17 +679,17 @@ function appendChatMessage(message, isSelf, originalMessage) {
                 selectedBadge.className = 'badge bg-primary ms-2';
                 selectedBadge.textContent = 'Selected';
                 incomingMessageElement.appendChild(selectedBadge);
-                
-                // Add context indicator if available
-                const context = buildConversationContext(playerName);
-                if (context && context.messages && context.messages.length > 0) {
-                    const contextCount = context.messages.length;
-                    const contextBadge = document.createElement('span');
-                    contextBadge.className = 'badge bg-info ms-2';
-                    contextBadge.title = `${contextCount} messages of context will be included`;
-                    contextBadge.textContent = `+${contextCount} context`;
-                    incomingMessageElement.appendChild(contextBadge);
-                }
+                    
+                    // Add context indicator if available
+                    const context = buildConversationContext(playerName);
+                    if (context && context.messages && context.messages.length > 0) {
+                        const contextCount = context.messages.length;
+                        const contextBadge = document.createElement('span');
+                        contextBadge.className = 'badge bg-info ms-2';
+                        contextBadge.title = `${contextCount} messages of context from ${currentUser}'s session included`;
+                        contextBadge.textContent = `+${contextCount} context (${currentUser})`;
+                        incomingMessageElement.appendChild(contextBadge);
+                    }
                 
                 // Clear any previous responses when selecting a new message
                 responseOptionsElement.innerHTML = '<p class="text-center text-muted">Click "Generate Response" to create AI replies for this message</p>';
@@ -683,6 +711,10 @@ function appendChatMessage(message, isSelf, originalMessage) {
     
     // Return the element for debugging
     return messageElement;
+    } catch (error) {
+        console.error('Error appending message:', error);
+        return null;
+    }
 }
 
 function displayResponseOptions(responses) {
@@ -889,15 +921,27 @@ function updateFeedbackSummary(data) {
  * @param {Object} message - The message to add
  */
 function addToChatHistory(message) {
-    // Add to the beginning so newest are first
-    chatHistory.unshift(message);
-    
-    // Limit the number of messages in history
-    if (chatHistory.length > MAX_CHAT_HISTORY) {
-        chatHistory = chatHistory.slice(0, MAX_CHAT_HISTORY);
+    // Ensure currentUser is set
+    if (!currentUser) {
+        const navbarText = document.querySelector('.navbar').textContent.trim();
+        currentUser = navbarText.replace('Welcome, ', '').replace('Logout', '').trim();
+        console.log('Current user identified as:', currentUser);
     }
     
-    console.log('Chat history updated:', chatHistory);
+    // Ensure the user has a chat history array
+    if (!userChatHistories[currentUser]) {
+        userChatHistories[currentUser] = [];
+    }
+    
+    // Add to the beginning so newest are first
+    userChatHistories[currentUser].unshift(message);
+    
+    // Limit the number of messages in history
+    if (userChatHistories[currentUser].length > MAX_CHAT_HISTORY) {
+        userChatHistories[currentUser] = userChatHistories[currentUser].slice(0, MAX_CHAT_HISTORY);
+    }
+    
+    console.log(`Chat history updated for user ${currentUser}:`, userChatHistories[currentUser]);
 }
 
 /**
@@ -906,7 +950,13 @@ function addToChatHistory(message) {
  * @returns {Object} - The context object
  */
 function buildConversationContext(playerName) {
-    if (chatHistory.length === 0) {
+    // Ensure user history exists
+    if (!userChatHistories[currentUser]) {
+        userChatHistories[currentUser] = [];
+    }
+    
+    // Return empty context if no history
+    if (userChatHistories[currentUser].length === 0) {
         return { messages: [] };
     }
     
@@ -916,12 +966,12 @@ function buildConversationContext(playerName) {
     };
     
     // Get the last 3-4 messages from this player (character-specific context)
-    const playerMessages = chatHistory
+    const playerMessages = userChatHistories[currentUser]
         .filter(msg => msg.speaker === playerName)
         .slice(0, 4);
     
     // Get the last 2-3 messages from the overall conversation (immediate context)
-    const recentMessages = chatHistory.slice(0, 3);
+    const recentMessages = userChatHistories[currentUser].slice(0, 3);
     
     // Combine both sets of messages, removing duplicates
     const contextMessages = [...recentMessages];
@@ -955,7 +1005,107 @@ function buildConversationContext(playerName) {
         context.summary = `Conversation between ${activeCharacter} and ${playerName} about ${firstMsg.text.substring(0, 30)}...`;
     }
     
+    // Add user identifier to context
+    context.user = currentUser;
+    
     return context;
+}
+
+/**
+ * Load chat history for a character from the server
+ * @param {string} characterName - The name of the character
+ */
+function loadChatHistory(characterName) {
+    fetch(`/api/history/${encodeURIComponent(characterName)}`)
+        .then(response => response.json())
+        .then(history => {
+            console.log(`Loaded ${history.length} chat history entries for ${characterName}`);
+            
+            // Ensure user chat history exists
+            if (!userChatHistories[currentUser]) {
+                userChatHistories[currentUser] = [];
+            }
+            
+            // Process chat history entries
+            history.forEach(entry => {
+                // Skip system messages
+                if (entry.sender === 'system') return;
+                
+                // Convert to our internal format
+                const chatEntry = {
+                    speaker: entry.sender === 'self' ? activeCharacter : 
+                             entry.sender === 'other' ? extractPlayerName(entry.message) : entry.sender,
+                    text: extractMessageText(entry.message),
+                    isSelf: entry.sender === 'self',
+                    timestamp: entry.timestamp
+                };
+                
+                // Add to the user's chat history if not a duplicate
+                const isDuplicate = userChatHistories[currentUser].some(
+                    msg => msg.speaker === chatEntry.speaker && 
+                           msg.text === chatEntry.text &&
+                           msg.timestamp === chatEntry.timestamp
+                );
+                
+                if (!isDuplicate) {
+                    userChatHistories[currentUser].push(chatEntry);
+                }
+            });
+            
+            // Sort by timestamp (newest first)
+            userChatHistories[currentUser].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            
+            // Limit to max history
+            if (userChatHistories[currentUser].length > MAX_CHAT_HISTORY) {
+                userChatHistories[currentUser] = userChatHistories[currentUser].slice(0, MAX_CHAT_HISTORY);
+            }
+            
+            console.log(`Updated chat history for ${currentUser}:`, userChatHistories[currentUser]);
+        })
+        .catch(error => {
+            console.error('Error loading chat history:', error);
+        });
+}
+
+/**
+ * Extract player name from a chat message
+ * @param {string} message - The chat message
+ * @returns {string} - The player name or "Unknown"
+ */
+function extractPlayerName(message) {
+    // Try to extract [Account] Character: or Character: pattern
+    const accountMatch = message.match(/\[([^\]]+)\] ([^:]+):/);
+    if (accountMatch) {
+        return accountMatch[2];
+    }
+    
+    const simpleMatch = message.match(/^([^:]+):/);
+    if (simpleMatch) {
+        return simpleMatch[1];
+    }
+    
+    return "Unknown";
+}
+
+/**
+ * Extract message text from a chat message
+ * @param {string} message - The chat message
+ * @returns {string} - The cleaned message text
+ */
+function extractMessageText(message) {
+    // Try to extract text after [Talk]
+    const talkMatch = message.match(/\[Talk\] (.*)/);
+    if (talkMatch) {
+        return talkMatch[1];
+    }
+    
+    // If no [Talk] pattern, just remove the name prefix
+    const nameMatch = message.match(/^[^:]+: (.*)/);
+    if (nameMatch) {
+        return nameMatch[1];
+    }
+    
+    return message;
 }
 
 // Initial load

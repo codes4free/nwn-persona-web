@@ -70,11 +70,49 @@
                 <h1 class="mb-4 text-center">Conversation Context Window</h1>
                 <p class="lead text-center">Enhancing AI character responses with intelligent conversation history</p>
                 
-                <div class="diagram-container">
-                    <img src="{{ url_for('static', filename='img/context-window-diagram.svg') }}" 
-                         alt="Context Window Diagram" 
-                         class="img-fluid" 
-                         style="max-width: 800px;">
+                    
+                    <div class="mt-4 p-3 bg-light border rounded">
+                        <h4 class="text-center mb-3">Conversation Context Window</h4>
+                        <p class="text-center"><em>How context improves AI character responses</em></p>
+                        
+                        <div class="row mt-4">
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-header bg-primary text-white">
+                                        <strong>Chat History</strong>
+                                    </div>
+                                    <div class="card-body">
+                                        <p><strong>Hazel:</strong> Good morning! Beautiful day, isn't it?</p>
+                                        <p><strong>Norfind:</strong> Indeed. The sky is particularly clear.</p>
+                                        <p><strong>Hazel:</strong> Have you visited the market today?</p>
+                                        <p><strong>Norfind:</strong> Not yet. Is there something special?</p>
+                                        <p class="bg-warning p-2 rounded"><strong>Hazel:</strong> New shipment of spices from Calimshan!</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-header bg-success text-white">
+                                        <strong>AI Response Generation</strong>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="text-primary"><strong>Context Messages:</strong></p>
+                                        <ul>
+                                            <li>3-4 messages from specific player</li>
+                                            <li>2-3 messages from recent conversation</li>
+                                            <li>Sorted chronologically</li>
+                                        </ul>
+                                        <hr>
+                                        <p class="text-success"><strong>Generated Responses:</strong></p>
+                                        <ol>
+                                            <li>"Calimshan spices? I must investigate."</li>
+                                            <li>"Ah, excellent! Their cinnamon is quite renowned in scholarly circles."</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="row mt-5">
