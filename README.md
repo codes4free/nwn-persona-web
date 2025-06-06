@@ -1,4 +1,4 @@
-# NWNX:EE Chatbot SaaS
+# NWNX:EE Roleplay Helper
 
 ## Overview
 
