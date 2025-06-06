@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
-# Simple script to run the NWNX:EE Chatbot app and automatically restart
-# if it stops. Useful for basic development or testing environments.
+# Simple script to run the NWNX:EE Chatbot app and automatically restart if it
+# stops. Creates a local virtual environment if dependencies are missing.
 
-# Always run from the script's directory
+set -e
 cd "$(dirname "$0")" || exit 1
 
-#nb6znh-codex/create-script-to-run-and-restart-app
-# Install dependencies if required
-if ! python3 -c "import eventlet" >/dev/null 2>&1; then
-  echo "Installing Python dependencies..."
+PYTHON="python3"
+
+  echo "Setting up virtual environment and installing dependencies..."
+  if [ ! -d ".venv" ]; then
+    python3 -m venv .venv
+  fi
+  PYTHON=".venv/bin/python"
+  "$PYTHON" -m pip install -q -r requirements.txt
+else
+  echo "Dependencies already installed."
+  "$PYTHON" app.py
   python3 -m pip install -q -r requirements.txt
 fi
 
