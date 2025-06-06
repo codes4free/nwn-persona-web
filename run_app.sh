@@ -5,12 +5,15 @@
 # Always run from the script's directory
 cd "$(dirname "$0")" || exit 1
 
+#nb6znh-codex/create-script-to-run-and-restart-app
 # Install dependencies if required
 if ! python3 -c "import eventlet" >/dev/null 2>&1; then
   echo "Installing Python dependencies..."
   python3 -m pip install -q -r requirements.txt
 fi
 
+=======
+#master
 while true; do
   echo "Starting app..."
   python3 app.py
