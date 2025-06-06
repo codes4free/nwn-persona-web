@@ -123,13 +123,12 @@ socket.on('new_message', (data) => {
     // Visual indicators
     document.title = "New message!"; // Change page title to indicate new message
     
-    // Determine if this message is for the current user/session
+    // Determine if this message belongs to the logged in user
     const isRelevantToUser = !data.client || data.client === currentUser;
-    
+
     console.log('Message client:', data.client, 'Current user:', currentUser, 'Is relevant:', isRelevantToUser);
-    
-    // Only process messages relevant to this user
-    if (isRelevantToUser) {
+
+    // Display all messages but only store history for the active user
     // Add a global alert for debugging
     let debugAlert = document.createElement('div');
     debugAlert.style.position = 'fixed';
@@ -177,8 +176,8 @@ socket.on('new_message', (data) => {
                 textContent = data.message.replace(/<strong>.*?<\/strong>:?\s*/, '');
             }
             
-            // Add message to chat history
-            if (!data.is_own) {
+            // Add message to chat history only if relevant to this user
+            if (!data.is_own && isRelevantToUser) {
                 addToChatHistory({
                     speaker: speakerName,
                     text: data.original_message || textContent,
@@ -211,7 +210,6 @@ socket.on('new_message', (data) => {
             }
         } catch (fallbackError) {
             console.error('Even fallback insertion failed:', fallbackError);
-            }
         }
     }
 });
