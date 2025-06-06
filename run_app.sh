@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Simple script to run the NWNX:EE Chatbot app and automatically restart if it
-# stops. Creates a local virtual environment if dependencies are missing.
+# Simple script to run the NWNX:EE Chatbot app and restart it whenever it
+# stops. Creates a local virtual environment and installs dependencies when
+# needed.
 
 set -e
 cd "$(dirname "$0")" || exit 1
@@ -23,8 +24,10 @@ fi
 
 while true; do
   echo "Starting app..."
+  set +e
   "$PYTHON" app.py
   exit_code=$?
+  set -e
   echo "App exited with status $exit_code. Restarting in 5 seconds..."
   sleep 5
 done
