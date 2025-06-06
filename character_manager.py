@@ -230,4 +230,4 @@ def import_profile_from_json(json_data):
         return {"error": f"Failed to import profile: {str(e)}"}
 
 # Load character profiles on module import
-character_profiles = load_all_profiles() 
+character_profiles = load_all_profiles()
