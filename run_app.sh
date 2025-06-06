@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+  if [ ! -x ".venv/bin/pip" ]; then
+    .venv/bin/python -m ensurepip --upgrade
+  fi
 # ld0mdw-codex/create-script-to-run-and-restart-app
 # Simple script to run the NWNX:EE Chatbot app and automatically restart if it
 # stops. Creates a local virtual environment if dependencies are missing.
