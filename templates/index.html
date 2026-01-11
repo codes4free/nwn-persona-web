@@ -170,14 +170,16 @@
                             <div class="mb-3">
                                
                                 <textarea id="portuguese-text" class="form-control" rows="3" placeholder="Write your message in any language here..."></textarea>
+                                <!-- Help text removed per user request -->
                             </div>
                             <button id="translate-button" class="btn btn-success mb-3">Express as Character</button>
                             
-                            <div id="translation-result" class="translation-result mt-3" style="display: none;">
+                            <div id="translation-result" class="translation-result mt-3">
                                 <div class="alert alert-info">
                                     <h5>Character Expression:</h5>
-                                    <p id="translated-text"></p>
-                                    <button id="copy-translation" class="btn btn-sm btn-primary mt-2">Copy to Clipboard</button>
+                                    <p id="translated-action" class="text-muted fst-italic mb-1"></p>
+                                    <p id="translated-text" class="mb-2"></p>
+                                    <button id="copy-translation" class="btn btn-sm btn-primary me-2" disabled>Copy to Clipboard</button>
                                 </div>
                             </div>
                         </div>

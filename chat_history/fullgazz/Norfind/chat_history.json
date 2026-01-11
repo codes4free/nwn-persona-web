@@ -213,5 +213,135 @@
     "timestamp": "2025-05-25 03:34:07",
     "sender": "system",
     "message": "Request to respond to Elric: \"Hes called Shade. Just dont stare too long into his eyes.\""
+  },
+  {
+    "timestamp": "2026-01-11 08:35:23",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"hey, eu precisava dessa luva, porque jogou fora?\" \u2192 Action: *raises an eyebrow* Speech: I needed that gauntlet. Why was it discarded?"
+  },
+  {
+    "timestamp": "2026-01-11 08:36:14",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"muito, bom.. lutou bem.\" \u2192 Action: *nods slightly* Speech: Well done... you fought bravely."
+  },
+  {
+    "timestamp": "2026-01-11 08:37:04",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Onde aprendeu essa arte ?\" \u2192 Action: *pauses thoughtfully* Speech: The art of survival is learned in the shadows, where silence speaks louder than words."
+  },
+  {
+    "timestamp": "2026-01-11 08:38:07",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Onde aprendeu essa arte ?\" \u2192 Action: *pauses thoughtfully* Speech: The art of survival is learned in the shadows of experience."
+  },
+  {
+    "timestamp": "2026-01-11 08:38:33",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"parabens, fez um excelente trabalho.\" \u2192 Action: *nods slightly* Speech: Congratulations, you have done excellent work."
+  },
+  {
+    "timestamp": "2026-01-11 08:39:24",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Gostaria de uma bebida refrescante\" \u2192 Action: *nods thoughtfully* Speech: A refreshing drink would be welcome in this heat."
+  },
+  {
+    "timestamp": "2026-01-11 08:41:21",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Que dia agradavel, parece uma pintura.\" \u2192 Action: *glances around thoughtfully* Speech: It is a pleasant day, indeed-like a scene captured in stillness."
+  },
+  {
+    "timestamp": "2026-01-11 08:42:08",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Que dia agradavel, parece uma pintura.\" \u2192 Action: *glances around thoughtfully* Speech: It is a pleasant day, as if the world itself has been painted anew."
+  },
+  {
+    "timestamp": "2026-01-11 08:42:58",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"nada a dizer\" \u2192 Action: *pauses thoughtfully* Speech: There is nothing more to say."
+  },
+  {
+    "timestamp": "2026-01-11 08:43:38",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"nada a dizer\" \u2192 Action: *pauses thoughtfully* Speech: There is nothing to say."
+  },
+  {
+    "timestamp": "2026-01-11 08:49:12",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"agora sim\" \u2192 Action: *nods slightly* Speech: Now, it is as it should be."
+  },
+  {
+    "timestamp": "2026-01-11 08:49:45",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"agora sim\" \u2192 Action: *nods slowly* Speech: Now, it is as it should be."
+  },
+  {
+    "timestamp": "2026-01-11 08:50:17",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"agora sim\" \u2192 Action: *nods slightly* Speech: Now, it is as it should be."
+  },
+  {
+    "timestamp": "2026-01-11 08:51:00",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"vamos ver se deu certo.\" \u2192 Action: *pauses thoughtfully* Speech: Let us see if it has succeeded."
+  },
+  {
+    "timestamp": "2026-01-11 09:05:27",
+    "sender": "ai",
+    "message": "[AI Option 1] Sometimes, haste leads to shadows we cannot escape."
+  },
+  {
+    "timestamp": "2026-01-11 09:05:27",
+    "sender": "ai",
+    "message": "[AI Option 2] Patience is a virtue, even in the face of urgency. The night holds its secrets, and we must tread wisely."
+  },
+  {
+    "timestamp": "2026-01-11 09:05:27",
+    "sender": "ai",
+    "message": "[AI Option 3] The night is a tapestry of hidden truths, each thread woven with care. To rush is to risk unraveling what we seek. Let us move with purpose, not haste."
+  },
+  {
+    "timestamp": "2026-01-11 09:05:27",
+    "sender": "system",
+    "message": "Request to respond to Earenien Ma'fer: \"But we could manage it as we are, I wont spend all night looking\""
+  },
+  {
+    "timestamp": "2026-01-11 09:06:29",
+    "sender": "ai",
+    "message": "[AI Option 1] Time is a luxury we cannot afford."
+  },
+  {
+    "timestamp": "2026-01-11 09:06:29",
+    "sender": "ai",
+    "message": "[AI Option 2] The night holds many secrets, and haste may lead us astray. Patience can reveal more than a restless search."
+  },
+  {
+    "timestamp": "2026-01-11 09:06:29",
+    "sender": "ai",
+    "message": "[AI Option 3] The darkness is a shroud, not a guide. Let us not rush into its embrace; instead, let us listen to the whispers of the night and trust in our instincts."
+  },
+  {
+    "timestamp": "2026-01-11 09:06:29",
+    "sender": "system",
+    "message": "Request to respond to Earenien Ma'fer: \"But we could manage it as we are, I wont spend all night looking\""
+  },
+  {
+    "timestamp": "2026-01-11 14:01:46",
+    "sender": "ai",
+    "message": "[AI Option 1] Safety often lies in stillness, not numbers."
+  },
+  {
+    "timestamp": "2026-01-11 14:01:46",
+    "sender": "ai",
+    "message": "[AI Option 2] A careful eye can discern allies in the shadows. Let us tread lightly and observe before we act."
+  },
+  {
+    "timestamp": "2026-01-11 14:01:46",
+    "sender": "ai",
+    "message": "[AI Option 3] The winds of fate carry many voices; some may offer aid, while others bring only discord. Let us seek those who walk the path of balance, for they may stand beside us when the time comes."
+  },
+  {
+    "timestamp": "2026-01-11 14:01:46",
+    "sender": "system",
+    "message": "Request to respond to Earenien Ma'fer: \"We'll see who is around. Another front would make the venture safer\""
   }
 ]

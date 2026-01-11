@@ -56,17 +56,21 @@ def save_profile(data):
 
 def delete_profile(character_name):
     """Delete a character profile"""
-    profile_path = os.path.join(CHARACTER_PROFILES_DIR, f"{character_name.replace(' ', '_')}.json")
-    
-    if not os.path.exists(profile_path):
-        return {"error": "Character profile not found"}
-    
-    try:
-        os.remove(profile_path)
-        return {"success": True, "message": f"Profile for {character_name} deleted successfully"}
-    except Exception as e:
-        print(f"Error deleting profile {character_name}: {e}")
-        return {"error": f"Failed to delete profile: {str(e)}"}
+    target_name = f"{character_name.replace(' ', '_')}.json"
+    for root, dirs, files in os.walk(CHARACTER_PROFILES_DIR):
+        if target_name in files:
+            profile_path = os.path.join(root, target_name)
+            try:
+                os.remove(profile_path)
+                # refresh global cache
+                global character_profiles
+                character_profiles = load_all_profiles()
+                return {"success": True, "message": f"Profile for {character_name} deleted successfully"}
+            except Exception as e:
+                print(f"Error deleting profile {character_name}: {e}")
+                return {"error": f"Failed to delete profile: {str(e)}"}
+
+    return {"error": "Character profile not found"}
 
 def get_template_profile():
     """Returns a template for a new character profile"""

@@ -23,6 +23,7 @@ const portugueseTextElement = document.getElementById('portuguese-text');
 const translateButton = document.getElementById('translate-button');
 const translationResultElement = document.getElementById('translation-result');
 const translatedTextElement = document.getElementById('translated-text');
+const translatedActionElement = document.getElementById('translated-action');
 const copyTranslationButton = document.getElementById('copy-translation');
 const feedbackSummaryElement = document.getElementById('feedback-summary');
 const feedbackProgressElement = document.getElementById('feedback-progress');
@@ -289,16 +290,55 @@ socket.on('ai_reply', (data) => {
 // Listen for translation results
 socket.on('translation_result', (data) => {
     console.log('Translation received:', data);
+    if (!translationResultElement) {
+        console.error('Missing translationResultElement; cannot display translation result.');
+        return;
+    }
     if (data.error) {
-        translatedTextElement.innerHTML = `<span class="text-danger">${data.error}</span>`;
+        if (translatedActionElement) translatedActionElement.textContent = '';
+        if (translatedTextElement) translatedTextElement.innerHTML = `<span class="text-danger">${data.error}</span>`;
+        // disable copy button on error
+        if (copyTranslationButton) copyTranslationButton.setAttribute('disabled', 'disabled');
         translationResultElement.style.display = 'block';
         return;
     }
-    
-    // Display the translation (clean any em dashes again just to be safe)
-    translatedTextElement.innerHTML = cleanEmDashes(data.translated);
+    // Prefer structured action + speech when provided
+    let action = '';
+    let speech = '';
+    if (data.action || data.speech) {
+        action = data.action || '';
+        speech = data.speech || '';
+    } else if (data.translated) {
+        // Fallback to raw translated text
+        speech = data.translated;
+    }
+
+    // Clean em dashes and trim
+    action = cleanEmDashes(action).trim();
+    speech = cleanEmDashes(speech).trim();
+
+    // Normalize action display (ensure asterisks)
+    if (action && !(action.startsWith('*') && action.endsWith('*'))) {
+        action = `*${action.replace(/^\*|\*$/g, '')}*`;
+    }
+
+    if (translatedActionElement) translatedActionElement.textContent = action;
+    if (translatedTextElement) {
+        // Wrap speech in double quotes for display if not already quoted
+        let displaySpeech = speech || '';
+        if (displaySpeech && !(displaySpeech.startsWith('"') && displaySpeech.endsWith('"'))) {
+            displaySpeech = `"${displaySpeech}"`;
+        }
+        translatedTextElement.textContent = displaySpeech;
+    }
+    // enable copy button when we have translation content
+    if ((action && action.length) || (speech && speech.length)) {
+        if (copyTranslationButton) copyTranslationButton.removeAttribute('disabled');
+    } else {
+        if (copyTranslationButton) copyTranslationButton.setAttribute('disabled', 'disabled');
+    }
     translationResultElement.style.display = 'block';
-    
+
     // Scroll to translation result
     translationResultElement.scrollIntoView({ behavior: 'smooth' });
 });
@@ -414,9 +454,13 @@ translateButton.addEventListener('click', () => {
         return;
     }
     
-    // Show loading state
-    translatedTextElement.innerHTML = '<div class="spinner-border text-primary spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div> Creating character expression...';
-    translationResultElement.style.display = 'block';
+    // Show loading state (guard elements exist)
+    if (translationResultElement && translatedTextElement) {
+        translatedTextElement.innerHTML = '<div class="spinner-border text-primary spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div> Creating character expression...';
+        translationResultElement.style.display = 'block';
+    } else {
+        console.warn('Translation result elements missing in DOM');
+    }
     
     // Send translation request
     socket.emit('translate_message', {
@@ -426,27 +470,69 @@ translateButton.addEventListener('click', () => {
 });
 
 // Copy translation button handler
-copyTranslationButton.addEventListener('click', () => {
-    const translatedText = translatedTextElement.innerText;
-    // Clean any em dashes before copying
-    const cleanedText = cleanEmDashes(translatedText);
-    
-    navigator.clipboard.writeText(cleanedText)
-        .then(() => {
-            // Show notification
-            const toastBody = notificationToast.querySelector('.toast-body');
-            toastBody.textContent = 'Character expression copied to clipboard!';
-            toast.show();
-        })
-        .catch(err => {
-            console.error('Failed to copy: ', err);
-            const toastBody = notificationToast.querySelector('.toast-body');
-            toastBody.textContent = 'Failed to copy to clipboard!';
-            toast.show();
-        });
-});
+if (copyTranslationButton) {
+    copyTranslationButton.addEventListener('click', () => {
+        const action = translatedActionElement ? translatedActionElement.innerText : '';
+        const speech = translatedTextElement ? translatedTextElement.innerText : '';
+        const combined = (action ? `${action} ` : '') + speech;
+
+        const cleaned = cleanEmDashes(combined.trim());
+            console.log('Copy button clicked. action:', action, 'speech:', speech, 'combined:', cleaned);
+            // Try modern Clipboard API first
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(cleaned)
+                    .then(() => {
+                        const toastBody = notificationToast.querySelector('.toast-body');
+                        toastBody.textContent = 'Character expression copied to clipboard!';
+                        toast.show();
+                    })
+                    .catch(err => {
+                        console.warn('clipboard.writeText failed, trying fallback:', err);
+                        const fallbackSuccess = fallbackCopyTextToClipboard(cleaned);
+                        const toastBody = notificationToast.querySelector('.toast-body');
+                        if (fallbackSuccess) {
+                            toastBody.textContent = 'Character expression copied to clipboard (fallback)!';
+                        } else {
+                            toastBody.textContent = 'Failed to copy to clipboard!';
+                        }
+                        toast.show();
+                    });
+            } else {
+                // Fallback for older browsers or insecure contexts
+                const fallbackSuccess = fallbackCopyTextToClipboard(cleaned);
+                const toastBody = notificationToast.querySelector('.toast-body');
+                if (fallbackSuccess) {
+                    toastBody.textContent = 'Character expression copied to clipboard (fallback)!';
+                } else {
+                    toastBody.textContent = 'Failed to copy to clipboard!';
+                }
+                toast.show();
+            }
+    });
+}
+
 
 // Functions
+// Fallback copy for insecure contexts or when Clipboard API is unavailable
+function fallbackCopyTextToClipboard(text) {
+    try {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        // Prevent UI jumps
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        return successful;
+    } catch (err) {
+        try { document.execCommand('copy'); } catch (e) {}
+        return false;
+    }
+}
+
 function fetchCharacters() {
     fetch('/api/characters')
         .then(response => response.json())
@@ -799,31 +885,74 @@ function displayResponseOptions(responses) {
         
         const copyButton = responseOption.querySelector('.btn-copy');
         copyButton.addEventListener('click', () => {
-            navigator.clipboard.writeText(cleanedResponse)
-                .then(() => {
-                    // Show notification
-                    const toastBody = notificationToast.querySelector('.toast-body');
-                    toastBody.textContent = 'Response copied to clipboard!';
-                    toast.show();
-                    
-                    // Clear the selection after copying
-                    selectedMessage = null;
-                    document.querySelectorAll('.message.selected').forEach(el => {
-                        el.classList.remove('selected');
+            // Determine speech portion: prefer quoted substring, else strip leading *action* if present
+            let speechText = '';
+            const quotedMatch = cleanedResponse.match(/"([^"]+)"/);
+            if (quotedMatch) {
+                speechText = quotedMatch[1].trim();
+            } else {
+                const actionMatch = cleanedResponse.match(/\*(.*?)\*/);
+                if (actionMatch) {
+                    // remove the action portion
+                    speechText = cleanedResponse.replace(actionMatch[0], '').trim();
+                } else {
+                    speechText = cleanedResponse;
+                }
+            }
+
+            // Wrap speech in double quotes if not already
+            let toCopy = speechText || cleanedResponse;
+            if (!(toCopy.startsWith('"') && toCopy.endsWith('"'))) {
+                toCopy = `"${toCopy}"`;
+            }
+
+            console.log('Response copy clicked. copying:', toCopy);
+
+            // Try Clipboard API with fallback
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(toCopy)
+                    .then(() => {
+                        const toastBody = notificationToast.querySelector('.toast-body');
+                        toastBody.textContent = 'Response copied to clipboard!';
+                        toast.show();
+
+                        // Clear selection and update UI
+                        selectedMessage = null;
+                        document.querySelectorAll('.message.selected').forEach(el => el.classList.remove('selected'));
+                        incomingMessageElement.innerHTML = '<span class="text-success">✓ Response copied!</span>';
+                        setTimeout(() => {
+                            incomingMessageElement.textContent = 'No messages selected yet';
+                            generateResponseButton.disabled = true;
+                        }, 3000);
+                    })
+                    .catch(err => {
+                        console.warn('clipboard.writeText failed, using fallback', err);
+                        const fallbackSuccess = fallbackCopyTextToClipboard(toCopy);
+                        if (fallbackSuccess) {
+                            const toastBody = notificationToast.querySelector('.toast-body');
+                            toastBody.textContent = 'Response copied to clipboard (fallback)!';
+                            toast.show();
+                        } else {
+                            console.error('Failed to copy response:', err);
+                        }
                     });
-                    
-                    // Update the message display
+            } else {
+                const fallbackSuccess = fallbackCopyTextToClipboard(toCopy);
+                if (fallbackSuccess) {
+                    const toastBody = notificationToast.querySelector('.toast-body');
+                    toastBody.textContent = 'Response copied to clipboard (fallback)!';
+                    toast.show();
+                    selectedMessage = null;
+                    document.querySelectorAll('.message.selected').forEach(el => el.classList.remove('selected'));
                     incomingMessageElement.innerHTML = '<span class="text-success">✓ Response copied!</span>';
-                    
-                    // After a delay, reset the message display
                     setTimeout(() => {
                         incomingMessageElement.textContent = 'No messages selected yet';
                         generateResponseButton.disabled = true;
                     }, 3000);
-                })
-                .catch(err => {
-                    console.error('Failed to copy: ', err);
-                });
+                } else {
+                    console.error('Failed to copy response: no clipboard available');
+                }
+            }
         });
         
         responseOption.addEventListener('click', (e) => {
