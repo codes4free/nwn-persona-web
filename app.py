@@ -521,7 +521,7 @@ def translate_custom_message(character_name, portuguese_text):
     
     system_prompt = (
         f"You are roleplaying as the following character in Neverwinter Nights EE. "
-        f"Stay strictly in character, using the persona, background, and style below.\n\n"
+        f"Use the persona, background and style below to speak as that character, but prioritize an accurate, concise translation of the meaning.\n\n"
         f"Persona: {persona.get('persona', '')}\n"
         f"Background: {persona.get('background', '')}\n"
         f"Appearance: {persona.get('appearance', '')}\n"
@@ -531,15 +531,10 @@ def translate_custom_message(character_name, portuguese_text):
         f"Mannerisms: {', '.join(persona.get('mannerisms', []))}\n"
         f"Example Dialogue: {persona.get('dialogue_examples', [])}\n"
         f"{creativity_instruction}\n"
-        f"\nYou will receive a message in Portuguese. Your task is NOT to translate it literally, but to "
-        f"understand the meaning and intent behind it, then express that intent as your character would naturally say it. "
-        f"Always include one action between asterisks (*) that reflects your character's mannerisms and personality. "
-        f"Then include your character's speech in quotes (\"\"). Use the character's unique vocabulary, "
-        f"speech patterns, and mannerisms.\n"
-        f"\nDo NOT attempt to preserve the exact wording or structure of the original Portuguese message. "
-        f"Instead, understand what the user wants to express, and then create a NEW message that conveys "
-        f"that same meaning but in your character's distinct voice and style.\n"
-        f"\nImportant formatting notes: Never use em dashes (—) in your responses. Use regular hyphens (-) or just avoid them entirely."
+        f"\nYou will receive a short message in Portuguese. Your task: produce a faithful, concise English rendering of the message as this character would say it — preserve the original meaning and intent, but express it in the character's voice. Keep the result brief and focused (one to three short sentences).\n"
+        f"Include ONE physical action (enclosed in asterisks, e.g. *smiles*) and the spoken line in quotes.\n"
+        f"Return your answer as JSON with two fields: 'action' (a short action string, without surrounding whitespace) and 'speech' (the translated English speech). Example: {{\"action\":\"*nods*\",\"speech\":\"I understand, we will proceed.\"}}\n"
+        f"Do NOT include extra commentary outside the JSON object. Never use em dashes (—); use hyphens (-) if needed."
     )
     user_prompt = f"I want to roleplay as your character and say something in Portuguese. Please understand what I mean and express it as your character would: \"{portuguese_text}\"\n\nRespond with an appropriate character action and speech that conveys this meaning."
 
@@ -560,21 +555,92 @@ def translate_custom_message(character_name, portuguese_text):
         translated = response.choices[0].message.content.strip()
         # Remove any em dashes in the response
         translated = translated.replace("—", "-")
-        
-        # Record the translation in history
+
+        # Try to parse JSON output from the model (preferred)
+        parsed = None
+        try:
+            parsed = json.loads(translated)
+        except Exception:
+            parsed = None
+
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        save_to_history(
-            character_name, 
-            f"Custom message interpretation - Original: \"{portuguese_text}\" → As character: \"{translated}\"", 
-            "system", 
-            timestamp
-        )
-        
-        return {
-            "original": portuguese_text,
-            "translated": translated,
-            "character": character_name
-        }
+
+        if isinstance(parsed, dict) and ('action' in parsed or 'speech' in parsed):
+            action = parsed.get('action', '').strip()
+            speech = parsed.get('speech', '').strip()
+            # Normalize action (ensure it's wrapped in asterisks)
+            if action and not (action.startswith('*') and action.endswith('*')):
+                action = f"*{action.strip('*').strip()}*"
+
+            # Record the structured translation in history
+            save_to_history(
+                character_name,
+                f"Custom message interpretation - Original: \"{portuguese_text}\" → Action: {action} Speech: {speech}",
+                "system",
+                timestamp
+            )
+
+            return {
+                "original": portuguese_text,
+                "action": action,
+                "speech": speech,
+                "character": character_name
+            }
+        else:
+            # Fallback: try to extract speech from quoted text and action from asterisks or surrounding text
+            speech = ''
+            action = ''
+
+            # Try to find the first quoted substring (double or single quotes)
+            quote_match = re.search(r'["\'](.*?)["\']', translated)
+            if quote_match:
+                speech = quote_match.group(1).strip()
+
+            # Try to find an action enclosed in asterisks
+            action_match = re.search(r'\*(.*?)\*', translated)
+            if action_match:
+                action = f"*{action_match.group(1).strip()}*"
+            else:
+                # If no asterisk action, derive action from the non-quoted part
+                non_quoted = re.sub(r'["\'].*?["\']', '', translated).strip()
+                # Remove any trailing punctuation
+                non_quoted = re.sub(r'^[\:\-\s]+|[\:\-\s]+$', '', non_quoted)
+                if non_quoted:
+                    # Use the first sentence or phrase as an action
+                    first_sentence = re.split(r'[\.\!\?]\s+', non_quoted)[0].strip()
+                    if first_sentence:
+                        # Wrap in asterisks
+                        action = f"*{first_sentence}*"
+
+            # If we found both action and speech, record as structured translation
+            if speech or action:
+                save_to_history(
+                    character_name,
+                    f"Custom message interpretation - Original: \"{portuguese_text}\" → Action: {action} Speech: {speech}",
+                    "system",
+                    timestamp
+                )
+
+                return {
+                    "original": portuguese_text,
+                    "action": action,
+                    "speech": speech,
+                    "character": character_name
+                }
+
+            # Otherwise, store the raw translated text and return it
+            save_to_history(
+                character_name,
+                f"Custom message interpretation - Original: \"{portuguese_text}\" → As character: \"{translated}\"",
+                "system",
+                timestamp
+            )
+
+            return {
+                "original": portuguese_text,
+                "translated": translated,
+                "character": character_name
+            }
     except Exception as e:
         logger.error(f"Error translating message: {e}")
         return {"error": str(e)}
@@ -680,22 +746,24 @@ def create_character():
 def delete_character(name):
     """Delete a character profile if owned by the current user"""
     global character_profiles
-    
-    if name not in character_profiles:
+    # First, try to load the profile from disk (handles stale in-memory cache)
+    profile = character_manager.get_profile(name)
+    if not profile:
         return jsonify({'error': 'Character not found'}), 404
-    
-    # Check ownership
-    if character_profiles[name].get('owner') != session.get('user'):
+
+    # Check ownership (profile may be on disk but not in-memory)
+    if profile.get('owner') != session.get('user'):
         return jsonify({'error': 'Unauthorized'}), 403
 
     if session.get('active_character') == name:
         session.pop('active_character', None)
-    
+
+    # Attempt deletion
     result = character_manager.delete_profile(name)
-    
     if 'error' in result:
         return jsonify(result), 400
-    
+
+    # Refresh in-memory cache
     character_profiles = character_manager.load_all_profiles()
     return jsonify(result)
 
