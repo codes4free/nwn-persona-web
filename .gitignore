@@ -136,6 +136,12 @@ ENV/
 env.bak/
 venv.bak/
 
+# Runtime outputs
+nohup.out
+uploads/
+chat_history/
+feedback_data/
+
 # Spyder project settings
 .spyderproject
 .spyproject
