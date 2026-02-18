@@ -142,6 +142,9 @@ uploads/
 chat_history/
 feedback_data/
 
+# Local certs/keys
+certs/
+
 # Spyder project settings
 .spyderproject
 .spyproject
