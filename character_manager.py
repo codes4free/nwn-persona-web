@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-import os
 import json
-import shutil
-from pathlib import Path
+import os
 
 # Configuration
 CHARACTER_PROFILES_DIR = "character_profiles"
@@ -24,7 +22,7 @@ def load_all_profiles():
                         with open(file_path, "r") as f:
                             data = json.load(f)
                         profiles[data["name"]] = data
-                    except Exception as e:
+                    except Exception:
                         continue
     return profiles
 
@@ -173,7 +171,7 @@ def update_profile(character_name, profile_data):
                 merged_profile["dialogue_examples"] = json.loads(
                     merged_profile["dialogue_examples"]
                 )
-            except:
+            except Exception:
                 merged_profile["dialogue_examples"] = []
         else:
             merged_profile["dialogue_examples"] = []

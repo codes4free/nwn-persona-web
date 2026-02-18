@@ -1,14 +1,15 @@
 """Authentication routes and helpers."""
 
-from typing import Any, Dict
 from functools import wraps
+from typing import Any, Dict
+
 from flask import (
+    flash,
+    redirect,
     render_template,
     request,
     session,
-    redirect,
     url_for,
-    flash,
 )
 
 from .storage import save_users
