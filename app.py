@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Configure eventlet at the very top - before ANY other imports
 import eventlet
+
 eventlet.monkey_patch(socket=True, os=True, select=True, thread=True, time=True)
 
 import os
@@ -9,7 +10,18 @@ import json
 import time
 import datetime
 import threading
-from flask import (Flask, render_template, request, jsonify, send_from_directory, session, redirect, url_for, flash, abort)
+from flask import (
+    Flask,
+    render_template,
+    request,
+    jsonify,
+    send_from_directory,
+    session,
+    redirect,
+    url_for,
+    flash,
+    abort,
+)
 from flask_socketio import SocketIO, emit, join_room
 from dotenv import load_dotenv
 import openai
@@ -21,8 +33,9 @@ import logging
 from typing import Any, Dict, List, Optional
 
 # Set up more detailed logging
-logging.basicConfig(level=logging.INFO, 
-                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 # Debug: capture last log_update payload for quick verification
@@ -34,9 +47,9 @@ LAST_LOG_UPDATE = {
 }
 
 # Enable detailed Socket.IO and Engine.IO logging
-engineio_logger = logging.getLogger('engineio')
+engineio_logger = logging.getLogger("engineio")
 engineio_logger.setLevel(logging.DEBUG)
-socketio_logger = logging.getLogger('socketio')
+socketio_logger = logging.getLogger("socketio")
 socketio_logger.setLevel(logging.DEBUG)
 
 # Load environment variables
@@ -50,28 +63,31 @@ FEEDBACK_DIR = "feedback_data"
 SYSTEM_PATTERN = r"\[Talk\] (?:What would you like to do\?|Please choose section:|<c>\[.*?\]</c>|Crafting Menu|Back|Cancel)"
 
 # Add persistent user storage at the top of the file (after other imports)
-USERS_FILE = 'users.json'
+USERS_FILE = "users.json"
 
-UPLOAD_FOLDER = 'uploads/character_json'
+UPLOAD_FOLDER = "uploads/character_json"
+
 
 def load_users() -> Dict[str, Any]:
     """Load user accounts from a JSON file."""
     if os.path.exists(USERS_FILE):
         try:
-            with open(USERS_FILE, 'r') as f:
+            with open(USERS_FILE, "r") as f:
                 return json.load(f)
         except Exception as e:
             logger.error(f"Error loading users: {e}")
             return {}
     return {}
 
+
 def save_users(users: Dict[str, Any]) -> None:
     """Save user accounts to a JSON file."""
     try:
-        with open(USERS_FILE, 'w') as f:
+        with open(USERS_FILE, "w") as f:
             json.dump(users, f, indent=2)
     except Exception as e:
         logger.error(f"Error saving users: {e}")
+
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -79,23 +95,23 @@ app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "nwnx-chatbot-secret")
 
 # Initialize SocketIO with proper configuration
 socketio = SocketIO(
-    app, 
-    async_mode='eventlet', 
-    cors_allowed_origins="*", 
+    app,
+    async_mode="eventlet",
+    cors_allowed_origins="*",
     manage_session=False,
     ping_timeout=20,
     ping_interval=10,
     logger=True,
     engineio_logger=True,
     always_connect=True,
-    transports=['polling', 'websocket'],
+    transports=["polling", "websocket"],
     cookie=False,
     upgrade_timeout=20000,
     max_http_buffer_size=1e7,
     http_compression=True,
     allow_upgrades=False,  # Disable transport upgrades to prevent session issues
     json=None,  # Don't rely on a specific JSON implementation
-    max_cookie_size=0  # Disable cookie size limiting
+    max_cookie_size=0,  # Disable cookie size limiting
 )
 
 #####################################
@@ -103,47 +119,56 @@ socketio = SocketIO(
 #####################################
 users = load_users()
 
-@app.route('/login', methods=['GET', 'POST'])
+
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
         if username in users and users[username] == password:
-            session['user'] = username
-            flash('Logged in successfully!', 'success')
-            return redirect(url_for('index'))
+            session["user"] = username
+            flash("Logged in successfully!", "success")
+            return redirect(url_for("index"))
         else:
-            flash('Invalid username or password', 'error')
-            return redirect(url_for('login'))
-    return render_template('login.html')
+            flash("Invalid username or password", "error")
+            return redirect(url_for("login"))
+    return render_template("login.html")
 
-@app.route('/logout')
+
+@app.route("/logout")
 def logout():
-    session.pop('user', None)
-    flash('Logged out', 'success')
-    return redirect(url_for('login'))
+    session.pop("user", None)
+    flash("Logged out", "success")
+    return redirect(url_for("login"))
 
-@app.route('/favicon.ico')
+
+@app.route("/favicon.ico")
 def favicon():
-    return send_from_directory(os.path.join(app.root_path, 'static'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+    return send_from_directory(
+        os.path.join(app.root_path, "static"),
+        "favicon.ico",
+        mimetype="image/vnd.microsoft.icon",
+    )
 
-@app.route('/register', methods=['GET', 'POST'])
+
+@app.route("/register", methods=["GET", "POST"])
 def register():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+        confirm_password = request.form.get("confirm_password")
         if username in users:
-            flash('Username already exists', 'error')
-            return redirect(url_for('register'))
+            flash("Username already exists", "error")
+            return redirect(url_for("register"))
         if password != confirm_password:
-            flash('Passwords do not match', 'error')
-            return redirect(url_for('register'))
+            flash("Passwords do not match", "error")
+            return redirect(url_for("register"))
         users[username] = password
         save_users(users)
-        flash('Registration successful! Please log in.', 'success')
-        return redirect(url_for('login'))
-    return render_template('register.html')
+        flash("Registration successful! Please log in.", "success")
+        return redirect(url_for("login"))
+    return render_template("register.html")
+
 
 # OpenAI Configuration: Token will now be provided per session via API Token Configuration.
 def get_openai_api_key() -> str:
@@ -151,8 +176,12 @@ def get_openai_api_key() -> str:
     token = session.get("openai_token")
     if not token:
         logger.error("OpenAI API token not found in session.")
-        abort(400, description="Missing OpenAI API token. Please set your token using the API Token Configuration.")
+        abort(
+            400,
+            description="Missing OpenAI API token. Please set your token using the API Token Configuration.",
+        )
     return token
+
 
 # Global variables
 active_character = None
@@ -167,6 +196,7 @@ os.makedirs(CHAT_HISTORY_DIR, exist_ok=True)
 os.makedirs(CHARACTER_PROFILES_DIR, exist_ok=True)
 os.makedirs(FEEDBACK_DIR, exist_ok=True)
 
+
 # Load character profiles
 # Detect character from log line
 def detect_character(line: str) -> Optional[str]:
@@ -179,162 +209,186 @@ def detect_character(line: str) -> Optional[str]:
         Optional[str]: Detected character name or None.
     """
     global active_character
-    current_user = session.get('user', '')
+    current_user = session.get("user", "")
     if not current_user:
         return None
     character_pattern = re.compile(r"\[" + re.escape(current_user) + r"\] ([^:]+)")
     match = character_pattern.search(line)
-    
+
     if match:
         character_name = match.group(1)
-        
+
         if character_name != active_character:
             logger.info(f"Switched to character: {character_name}")
             active_character = character_name
-            socketio.emit('character_change', {'character': character_name})
-            
+            socketio.emit("character_change", {"character": character_name})
+
             # Set up chat history for this character
             setup_chat_history(character_name)
-            
+
         return character_name
-        
+
     return None
+
 
 # Setup chat history
 def setup_chat_history(character_name: str) -> None:
     """Set up directory for character chat history."""
-    user = session.get('user', 'default')
-    character_dir = os.path.join(CHAT_HISTORY_DIR, user, character_name.replace(' ', '_'))
+    user = session.get("user", "default")
+    character_dir = os.path.join(
+        CHAT_HISTORY_DIR, user, character_name.replace(" ", "_")
+    )
     os.makedirs(character_dir, exist_ok=True)
-    logger.info(f"Chat history directory for {character_name} of user {user}: {character_dir}")
+    logger.info(
+        f"Chat history directory for {character_name} of user {user}: {character_dir}"
+    )
+
 
 # Save to chat history
-def save_to_history(character_name: str, message: str, sender: str, timestamp: Optional[str] = None) -> None:
+def save_to_history(
+    character_name: str, message: str, sender: str, timestamp: Optional[str] = None
+) -> None:
     """Save a message to the character's chat history."""
     if not timestamp:
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
+
     try:
-        user = session.get('user', 'default')
-        character_dir = os.path.join(CHAT_HISTORY_DIR, user, character_name.replace(' ', '_'))
-        history_file = os.path.join(character_dir, 'chat_history.json')
-        
+        user = session.get("user", "default")
+        character_dir = os.path.join(
+            CHAT_HISTORY_DIR, user, character_name.replace(" ", "_")
+        )
+        history_file = os.path.join(character_dir, "chat_history.json")
+
         if os.path.exists(history_file):
-            with open(history_file, 'r', encoding='utf-8') as f:
+            with open(history_file, "r", encoding="utf-8") as f:
                 history = json.load(f)
         else:
             history = []
-        
-        history.append({
-            "timestamp": timestamp,
-            "sender": sender,
-            "message": message
-        })
-        
-        with open(history_file, 'w', encoding='utf-8') as f:
+
+        history.append({"timestamp": timestamp, "sender": sender, "message": message})
+
+        with open(history_file, "w", encoding="utf-8") as f:
             json.dump(history, f, indent=2)
-        
+
     except Exception as e:
         logger.error(f"Error saving to chat history: {e}")
+
 
 # Chat monitor function
 def monitor_chat() -> None:
     """Monitor chat via WebSocket/API (no local file monitoring)."""
     logger.info("Starting chat monitor - waiting for logs via WebSocket/API")
     logger.info("No local file monitoring - all logs come from remote clients")
-    
+
     # Just keep the thread alive to receive WebSocket messages
     while running:
         time.sleep(5)  # Just sleep, actual processing happens in socket handlers
 
+
 # Process new messages
-def process_new_messages(data: str, client=None, user_characters=None, override_character: Optional[str] = None) -> None:
+def process_new_messages(
+    data: str,
+    client=None,
+    user_characters=None,
+    override_character: Optional[str] = None,
+) -> None:
     """Process incoming chat messages and emit events to clients."""
-    lines = data.strip().split('\n')
+    lines = data.strip().split("\n")
     logger.info(f"Processing {len(lines)} new message lines")
-    logger.info(f"process_new_messages: client={client} user_characters={len(user_characters) if user_characters else 0} override_character={override_character}")
-    
+    logger.info(
+        f"process_new_messages: client={client} user_characters={len(user_characters) if user_characters else 0} override_character={override_character}"
+    )
+
     active_char = None
-    
+
     # Use provided characters or get all if not provided
     if not user_characters and client:
-        user_characters = {name: profile for name, profile in character_profiles.items() 
-                          if profile.get('owner') == client}
-    
+        user_characters = {
+            name: profile
+            for name, profile in character_profiles.items()
+            if profile.get("owner") == client
+        }
+
     # If no active character is set but we have user characters, use the first one
     if user_characters:
         # Get the first character for this user if they have any
         if not active_char and len(user_characters) > 0:
             active_char = next(iter(user_characters.keys()))
-            logger.info(f"Default active_character set to {active_char} for client {client}")
-    
+            logger.info(
+                f"Default active_character set to {active_char} for client {client}"
+            )
+
     for line in lines:
         # Skip empty lines
         if not line.strip():
             continue
-        
+
         # Skip lines with <c> tags - these are item/action notifications, not chat
         if "<c>" in line and "</c>" in line:
             logger.info(f"Skipping system notification: {line[:30]}...")
             continue
-        
+
         # Use override_character if provided, otherwise detect from line
         character_name = override_character
         if not character_name:
             # For log API updates, use the client's active character
             character_name = active_char
-            
+
             # Try to detect character from line
             for char_name in user_characters.keys():
                 if f"[{client}] {char_name}" in line:
                     character_name = char_name
                     break
-        
+
         if not character_name and not client:
             continue
-        
+
         # Check if this is the client's own character's message
         is_own_message = client and f"[{client}]" in line
-        
+
         # Check if this is likely a system menu message
         is_system_message = is_own_message and re.search(SYSTEM_PATTERN, line)
-        
+
         if is_system_message:
             # This is a system message, we'll ignore it
             logger.info(f"Skipping system menu message: {line[:30]}...")
             continue
-            
+
         logger.info(f"Processing chat message: {line[:50]}...")
-        
+
         # Save the message if we have a character
         if character_name:
             # Create in-memory record only - don't rely on session
             try:
-                user = client or 'default'
-                character_dir = os.path.join(CHAT_HISTORY_DIR, user, character_name.replace(' ', '_'))
+                user = client or "default"
+                character_dir = os.path.join(
+                    CHAT_HISTORY_DIR, user, character_name.replace(" ", "_")
+                )
                 os.makedirs(character_dir, exist_ok=True)
-                
-                history_file = os.path.join(character_dir, 'chat_history.json')
-                
+
+                history_file = os.path.join(character_dir, "chat_history.json")
+
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                
+
                 if os.path.exists(history_file):
-                    with open(history_file, 'r', encoding='utf-8') as f:
+                    with open(history_file, "r", encoding="utf-8") as f:
                         history = json.load(f)
                 else:
                     history = []
-                
-                history.append({
-                    "timestamp": timestamp,
-                    "sender": "self" if is_own_message else "other",
-                    "message": line
-                })
-                
-                with open(history_file, 'w', encoding='utf-8') as f:
+
+                history.append(
+                    {
+                        "timestamp": timestamp,
+                        "sender": "self" if is_own_message else "other",
+                        "message": line,
+                    }
+                )
+
+                with open(history_file, "w", encoding="utf-8") as f:
                     json.dump(history, f, indent=2)
             except Exception as e:
                 logger.error(f"Error saving to chat history: {e}")
-        
+
         # Parse the original message content for player messages
         original_message = None
         if not is_own_message:
@@ -344,7 +398,7 @@ def process_new_messages(data: str, client=None, user_characters=None, override_
                 account, char_name, mode, player_message = match.groups()
                 if mode == "Talk":
                     original_message = player_message
-        
+
         # Only display accepted conversation format: [username] char name: [Talk] msg
         talk_match = re.match(r"^\[([^\]]+)\] ([^:]+): \[([^\]]+)\] (.*)$", line)
         if not talk_match:
@@ -357,18 +411,21 @@ def process_new_messages(data: str, client=None, user_characters=None, override_
             logger.info(f"Skipping non-Talk line: {line[:120]}")
             continue
         formatted_message = f"<strong>{speaker}:</strong> {text}"
-        
+
         # Emit the new_message event to all clients
         logger.info(f"Broadcasting message to all clients")
-        socketio.emit('new_message', {
-            'character': character_name,
-            'message': formatted_message,
-            'raw_message': line,
-            'is_own': is_own_message,
-            'original_message': original_message,
-            'client': client
-        })
-            
+        socketio.emit(
+            "new_message",
+            {
+                "character": character_name,
+                "message": formatted_message,
+                "raw_message": line,
+                "is_own": is_own_message,
+                "original_message": original_message,
+                "client": client,
+            },
+        )
+
         # Process NPC/player messages for auto-reply
         if not is_own_message:
             # Only accept full format: [username] char name: [mode] msg
@@ -376,29 +433,39 @@ def process_new_messages(data: str, client=None, user_characters=None, override_
             if match:
                 account, char_name, mode, player_message = match.groups()
                 if mode == "Talk":
-                    logger.info(f"Broadcasting player message from {char_name} to all clients")
-                    socketio.emit('player_message', {
-                        'character': character_name,
-                        'player_name': char_name,
-                        'message': player_message,
-                        'client': client
-                    })
+                    logger.info(
+                        f"Broadcasting player message from {char_name} to all clients"
+                    )
+                    socketio.emit(
+                        "player_message",
+                        {
+                            "character": character_name,
+                            "player_name": char_name,
+                            "message": player_message,
+                            "client": client,
+                        },
+                    )
+
 
 # Generate AI responses
-def generate_in_character_reply(character_name, player_message, num_alternatives=3, context=None):
+def generate_in_character_reply(
+    character_name, player_message, num_alternatives=3, context=None
+):
     """Generate AI responses for a character"""
     if not character_name or character_name not in character_profiles:
         return []
-    
+
     persona = character_profiles[character_name]
-    
+
     # Set character-specific parameters
-    temperature = persona.get("temperature", 0.7)  # Get temperature from profile or use 0.7 as default
-    
+    temperature = persona.get(
+        "temperature", 0.7
+    )  # Get temperature from profile or use 0.7 as default
+
     # Note: Special case handling for Elvith is maintained but temperature modifier is reduced
     # as the user can now directly control temperature via the UI
     creativity_instruction = ""
-    
+
     # Check if this is Elvith - if so, reduce creativity/poetry
     if "Elvith" in character_name:
         # Apply a small reduction to the user-defined temperature
@@ -410,7 +477,7 @@ def generate_in_character_reply(character_name, player_message, num_alternatives
             f"While still maintaining your elegant and aristocratic tone, prioritize following the "
             f"conversation directly rather than being overly poetic or abstract."
         )
-    
+
     system_prompt = (
         f"You are roleplaying as the following character in Neverwinter Nights EE. "
         f"Stay strictly in character, using the persona, background, and style below.\n\n"
@@ -430,32 +497,38 @@ def generate_in_character_reply(character_name, player_message, num_alternatives
         f"\nDo not label them as positive/neutral/negative or by length."
         f"\nLabel each reply as '1.', '2.', and '3.' respectively."
     )
-    
+
     # Build messages array with context if available
     messages = [{"role": "system", "content": system_prompt}]
-    
+
     # Add conversation context if available
     if context and context.get("messages") and len(context.get("messages", [])) > 0:
         # Log context being used
         logger.info(f"Using context with {len(context.get('messages', []))} messages")
-        
+
         # Add context messages to conversation history
         for msg in context.get("messages", []):
             if msg.get("speaker") and msg.get("text"):
                 role = "assistant" if msg.get("speaker") == character_name else "user"
-                messages.append({
-                    "role": role,
-                    "content": f"{msg.get('speaker')}: {msg.get('text')}"
-                })
-                
+                messages.append(
+                    {
+                        "role": role,
+                        "content": f"{msg.get('speaker')}: {msg.get('text')}",
+                    }
+                )
+
         # Add a separator after context
-        messages.append({
-            "role": "system", 
-            "content": "The above messages provide context for the conversation. Now respond to the following message:"
-        })
-    
+        messages.append(
+            {
+                "role": "system",
+                "content": "The above messages provide context for the conversation. Now respond to the following message:",
+            }
+        )
+
     # Add the current message
-    messages.append({"role": "user", "content": f"Player says: {player_message}\nYour replies:"})
+    messages.append(
+        {"role": "user", "content": f"Player says: {player_message}\nYour replies:"}
+    )
 
     try:
         openai.api_key = get_openai_api_key()
@@ -466,40 +539,46 @@ def generate_in_character_reply(character_name, player_message, num_alternatives
             temperature=temperature,
             n=1,
         )
-        
+
         # Parse the single response into three options
         content = response.choices[0].message.content.strip()
         # Remove any em dashes in the response
         content = content.replace("—", "-")
-        
+
         # Split by '1.', '2.', '3.'
         import re
-        matches = re.split(r'\n?\s*\d\.\s*', content)
+
+        matches = re.split(r"\n?\s*\d\.\s*", content)
         # The first split part is before '1.', so ignore it
         options = [m.strip() for m in matches[1:4] if m.strip()]
-        options = [re.sub(r'\s*\n\s*', ' ', opt).strip() for opt in options]
-        
+        options = [re.sub(r"\s*\n\s*", " ", opt).strip() for opt in options]
+
         # Record AI responses in history
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for idx, reply in enumerate(options, 1):
-            save_to_history(character_name, f"[AI Option {idx}] {reply}", "ai", timestamp)
-        
+            save_to_history(
+                character_name, f"[AI Option {idx}] {reply}", "ai", timestamp
+            )
+
         return options
     except Exception as e:
         logger.error(f"Error generating AI response: {e}")
         return []
 
+
 def translate_custom_message(character_name, portuguese_text):
     """Translate a custom Portuguese message to English using the character's persona"""
     if not character_name or character_name not in character_profiles:
         return {"error": "Character not found"}
-    
+
     persona = character_profiles[character_name]
-    
+
     # Set character-specific parameters
-    temperature = persona.get("temperature", 0.7)  # Get temperature from profile or use 0.7 as default
+    temperature = persona.get(
+        "temperature", 0.7
+    )  # Get temperature from profile or use 0.7 as default
     creativity_instruction = ""
-    
+
     # Check if this is Elvith - if so, reduce creativity/poetry
     if "Elvith" in character_name:
         # Apply a small reduction to the user-defined temperature
@@ -511,7 +590,7 @@ def translate_custom_message(character_name, portuguese_text):
             f"While still maintaining your elegant and aristocratic tone, prioritize direct communication "
             f"rather than being overly poetic or abstract."
         )
-    
+
     system_prompt = (
         f"You are roleplaying as the following character in Neverwinter Nights EE. "
         f"Use the persona, background and style below to speak as that character, but prioritize an accurate, concise translation of the meaning.\n\n"
@@ -526,10 +605,10 @@ def translate_custom_message(character_name, portuguese_text):
         f"{creativity_instruction}\n"
         f"\nYou will receive a short message in Portuguese. Your task: produce a faithful, concise English rendering of the message as this character would say it — preserve the original meaning and intent, but express it in the character's voice. Keep the result brief and focused (one to three short sentences).\n"
         f"Include ONE physical action (enclosed in asterisks, e.g. *smiles*) and the spoken line in quotes.\n"
-        f"Return your answer as JSON with two fields: 'action' (a short action string, without surrounding whitespace) and 'speech' (the translated English speech). Example: {{\"action\":\"*nods*\",\"speech\":\"I understand, we will proceed.\"}}\n"
+        f'Return your answer as JSON with two fields: \'action\' (a short action string, without surrounding whitespace) and \'speech\' (the translated English speech). Example: {{"action":"*nods*","speech":"I understand, we will proceed."}}\n'
         f"Do NOT include extra commentary outside the JSON object. Never use em dashes (—); use hyphens (-) if needed."
     )
-    user_prompt = f"I want to roleplay as your character and say something in Portuguese. Please understand what I mean and express it as your character would: \"{portuguese_text}\"\n\nRespond with an appropriate character action and speech that conveys this meaning."
+    user_prompt = f'I want to roleplay as your character and say something in Portuguese. Please understand what I mean and express it as your character would: "{portuguese_text}"\n\nRespond with an appropriate character action and speech that conveys this meaning.'
 
     try:
         openai.api_key = get_openai_api_key()
@@ -537,13 +616,13 @@ def translate_custom_message(character_name, portuguese_text):
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": user_prompt},
             ],
             max_tokens=250,
             temperature=temperature,
             n=1,
         )
-        
+
         # Get the translated message
         translated = response.choices[0].message.content.strip()
         # Remove any em dashes in the response
@@ -558,31 +637,31 @@ def translate_custom_message(character_name, portuguese_text):
 
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        if isinstance(parsed, dict) and ('action' in parsed or 'speech' in parsed):
-            action = parsed.get('action', '').strip()
-            speech = parsed.get('speech', '').strip()
+        if isinstance(parsed, dict) and ("action" in parsed or "speech" in parsed):
+            action = parsed.get("action", "").strip()
+            speech = parsed.get("speech", "").strip()
             # Normalize action (ensure it's wrapped in asterisks)
-            if action and not (action.startswith('*') and action.endswith('*')):
+            if action and not (action.startswith("*") and action.endswith("*")):
                 action = f"*{action.strip('*').strip()}*"
 
             # Record the structured translation in history
             save_to_history(
                 character_name,
-                f"Custom message interpretation - Original: \"{portuguese_text}\" → Action: {action} Speech: {speech}",
+                f'Custom message interpretation - Original: "{portuguese_text}" → Action: {action} Speech: {speech}',
                 "system",
-                timestamp
+                timestamp,
             )
 
             return {
                 "original": portuguese_text,
                 "action": action,
                 "speech": speech,
-                "character": character_name
+                "character": character_name,
             }
         else:
             # Fallback: try to extract speech from quoted text and action from asterisks or surrounding text
-            speech = ''
-            action = ''
+            speech = ""
+            action = ""
 
             # Try to find the first quoted substring (double or single quotes)
             quote_match = re.search(r'["\'](.*?)["\']', translated)
@@ -590,17 +669,17 @@ def translate_custom_message(character_name, portuguese_text):
                 speech = quote_match.group(1).strip()
 
             # Try to find an action enclosed in asterisks
-            action_match = re.search(r'\*(.*?)\*', translated)
+            action_match = re.search(r"\*(.*?)\*", translated)
             if action_match:
                 action = f"*{action_match.group(1).strip()}*"
             else:
                 # If no asterisk action, derive action from the non-quoted part
-                non_quoted = re.sub(r'["\'].*?["\']', '', translated).strip()
+                non_quoted = re.sub(r'["\'].*?["\']', "", translated).strip()
                 # Remove any trailing punctuation
-                non_quoted = re.sub(r'^[\:\-\s]+|[\:\-\s]+$', '', non_quoted)
+                non_quoted = re.sub(r"^[\:\-\s]+|[\:\-\s]+$", "", non_quoted)
                 if non_quoted:
                     # Use the first sentence or phrase as an action
-                    first_sentence = re.split(r'[\.\!\?]\s+', non_quoted)[0].strip()
+                    first_sentence = re.split(r"[\.\!\?]\s+", non_quoted)[0].strip()
                     if first_sentence:
                         # Wrap in asterisks
                         action = f"*{first_sentence}*"
@@ -609,34 +688,35 @@ def translate_custom_message(character_name, portuguese_text):
             if speech or action:
                 save_to_history(
                     character_name,
-                    f"Custom message interpretation - Original: \"{portuguese_text}\" → Action: {action} Speech: {speech}",
+                    f'Custom message interpretation - Original: "{portuguese_text}" → Action: {action} Speech: {speech}',
                     "system",
-                    timestamp
+                    timestamp,
                 )
 
                 return {
                     "original": portuguese_text,
                     "action": action,
                     "speech": speech,
-                    "character": character_name
+                    "character": character_name,
                 }
 
             # Otherwise, store the raw translated text and return it
             save_to_history(
                 character_name,
-                f"Custom message interpretation - Original: \"{portuguese_text}\" → As character: \"{translated}\"",
+                f'Custom message interpretation - Original: "{portuguese_text}" → As character: "{translated}"',
                 "system",
-                timestamp
+                timestamp,
             )
 
             return {
                 "original": portuguese_text,
                 "translated": translated,
-                "character": character_name
+                "character": character_name,
             }
     except Exception as e:
         logger.error(f"Error translating message: {e}")
         return {"error": str(e)}
+
 
 # Helper function to clean em dashes from any text
 def remove_em_dashes(text):
@@ -645,96 +725,111 @@ def remove_em_dashes(text):
         return text.replace("—", "-")
     return text
 
-@app.route('/api/translate', methods=['POST'])
+
+@app.route("/api/translate", methods=["POST"])
 def translate_message():
     """API endpoint to translate a custom message"""
     data = request.json
-    character_name = data.get('character', active_character)
-    portuguese_text = data.get('text', '')
-    
+    character_name = data.get("character", active_character)
+    portuguese_text = data.get("text", "")
+
     if not character_name:
         return jsonify({"error": "No active character selected"}), 400
-        
+
     if not portuguese_text:
         return jsonify({"error": "No text provided"}), 400
-    
+
     result = translate_custom_message(character_name, portuguese_text)
     return jsonify(result)
 
-@socketio.on('translate_message')
+
+@socketio.on("translate_message")
 def handle_translate_message(data):
     """WebSocket endpoint to translate a message"""
-    character_name = data.get('character', active_character)
-    portuguese_text = data.get('text', '')
-    
+    character_name = data.get("character", active_character)
+    portuguese_text = data.get("text", "")
+
     if not character_name or not portuguese_text:
-        emit('translation_result', {'error': 'Missing character or text'})
+        emit("translation_result", {"error": "Missing character or text"})
         return
-    
+
     result = translate_custom_message(character_name, portuguese_text)
-    
+
     # Make sure translated text doesn't have em dashes
-    if 'translated' in result:
-        result['translated'] = remove_em_dashes(result['translated'])
-    
-    emit('translation_result', result)
+    if "translated" in result:
+        result["translated"] = remove_em_dashes(result["translated"])
+
+    emit("translation_result", result)
+
 
 # Flask routes
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'user' not in session:
-            flash('Please log in to access this page', 'error')
-            return redirect(url_for('login'))
+        if "user" not in session:
+            flash("Please log in to access this page", "error")
+            return redirect(url_for("login"))
         return f(*args, **kwargs)
+
     return decorated_function
 
-@app.route('/')
+
+@app.route("/")
 @login_required
 def index():
     """Render the main page"""
-    return render_template('index.html')
+    return render_template("index.html")
 
-@app.route('/create-character')
+
+@app.route("/create-character")
 @login_required
 def create_character_form():
     """Render the character creation form"""
-    return render_template('create_character.html')
+    return render_template("create_character.html")
 
-@app.route('/api/characters', methods=['GET'])
+
+@app.route("/api/characters", methods=["GET"])
 @login_required
 def get_characters():
     """Return list of characters owned by the current user"""
-    current_user = session.get('user')
-    user_characters = {name: profile for name, profile in character_profiles.items() if profile.get('owner') == current_user}
-    return jsonify({
-        'active_character': session.get('active_character'),
-        'characters': list(user_characters.keys())
-    })
+    current_user = session.get("user")
+    user_characters = {
+        name: profile
+        for name, profile in character_profiles.items()
+        if profile.get("owner") == current_user
+    }
+    return jsonify(
+        {
+            "active_character": session.get("active_character"),
+            "characters": list(user_characters.keys()),
+        }
+    )
 
-@app.route('/api/characters', methods=['POST'])
+
+@app.route("/api/characters", methods=["POST"])
 @login_required
 def create_character():
     """Create a new character profile for the current user"""
     data = request.json
-    
-    if not data or 'name' not in data:
-        return jsonify({'error': 'Character name is required'}), 400
-    
+
+    if not data or "name" not in data:
+        return jsonify({"error": "Character name is required"}), 400
+
     # Set the owner to the current user
-    data['owner'] = session.get('user')
+    data["owner"] = session.get("user")
 
     result = character_manager.save_profile(data)
-    
-    if 'error' in result:
+
+    if "error" in result:
         return jsonify(result), 400
-    
+
     global character_profiles
     character_profiles = character_manager.load_all_profiles()
-    
+
     return jsonify(result)
 
-@app.route('/api/characters/<name>', methods=['DELETE'])
+
+@app.route("/api/characters/<name>", methods=["DELETE"])
 @login_required
 def delete_character(name):
     """Delete a character profile if owned by the current user"""
@@ -742,266 +837,305 @@ def delete_character(name):
     # First, try to load the profile from disk (handles stale in-memory cache)
     profile = character_manager.get_profile(name)
     if not profile:
-        return jsonify({'error': 'Character not found'}), 404
+        return jsonify({"error": "Character not found"}), 404
 
     # Check ownership (profile may be on disk but not in-memory)
-    if profile.get('owner') != session.get('user'):
-        return jsonify({'error': 'Unauthorized'}), 403
+    if profile.get("owner") != session.get("user"):
+        return jsonify({"error": "Unauthorized"}), 403
 
-    if session.get('active_character') == name:
-        session.pop('active_character', None)
+    if session.get("active_character") == name:
+        session.pop("active_character", None)
 
     # Attempt deletion
     result = character_manager.delete_profile(name)
-    if 'error' in result:
+    if "error" in result:
         return jsonify(result), 400
 
     # Refresh in-memory cache
     character_profiles = character_manager.load_all_profiles()
     return jsonify(result)
 
-@app.route('/api/character/<n>')
+
+@app.route("/api/character/<n>")
 @login_required
 def get_character(n):
     """Return character profile if owned by current user"""
     if n in character_profiles:
-        if character_profiles[n].get('owner') != session.get('user'):
-            return jsonify({'error': 'Unauthorized'}), 403
+        if character_profiles[n].get("owner") != session.get("user"):
+            return jsonify({"error": "Unauthorized"}), 403
         return jsonify(character_profiles[n])
-    return jsonify({'error': 'Character not found'}), 404
+    return jsonify({"error": "Character not found"}), 404
 
-@app.route('/api/character/<n>/activate', methods=['POST'])
+
+@app.route("/api/character/<n>/activate", methods=["POST"])
 @login_required
 def set_active_character(n):
     """Set a character as the active character if owned by current user"""
     if n not in character_profiles:
-        return jsonify({'error': 'Character not found'}), 404
-    
-    if character_profiles[n].get('owner') != session.get('user'):
-        return jsonify({'error': 'Unauthorized'}), 403
+        return jsonify({"error": "Character not found"}), 404
 
-    session['active_character'] = n
+    if character_profiles[n].get("owner") != session.get("user"):
+        return jsonify({"error": "Unauthorized"}), 403
+
+    session["active_character"] = n
     logger.info(f"Manually activated character: {n}")
-    
-    setup_chat_history(n)
-    socketio.emit('character_change', {'character': n})
-    return jsonify({'success': True, 'active_character': n})
 
-@app.route('/api/history/<character>')
+    setup_chat_history(n)
+    socketio.emit("character_change", {"character": n})
+    return jsonify({"success": True, "active_character": n})
+
+
+@app.route("/api/history/<character>")
 def get_history(character):
     """Return chat history for a character"""
     try:
-        user = session.get('user', 'default')
-        character_dir = os.path.join(CHAT_HISTORY_DIR, user, character.replace(' ', '_'))
-        history_file = os.path.join(character_dir, 'chat_history.json')
-        
+        user = session.get("user", "default")
+        character_dir = os.path.join(
+            CHAT_HISTORY_DIR, user, character.replace(" ", "_")
+        )
+        history_file = os.path.join(character_dir, "chat_history.json")
+
         if os.path.exists(history_file):
-            with open(history_file, 'r', encoding='utf-8') as f:
+            with open(history_file, "r", encoding="utf-8") as f:
                 history = json.load(f)
             return jsonify(history)
         return jsonify([])
     except Exception as e:
         logger.error(f"Error retrieving history: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@app.route('/api/character/upload-json', methods=['POST'])
+
+@app.route("/api/character/upload-json", methods=["POST"])
 @login_required
 def upload_character_json():
     """Endpoint to upload a JSON file for character profile and return its content."""
-    if 'json_file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
-    file = request.files['json_file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-    if not file.filename.lower().endswith('.json'):
-        return jsonify({'error': 'File must be in JSON format'}), 400
+    if "json_file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    file = request.files["json_file"]
+    if file.filename == "":
+        return jsonify({"error": "No selected file"}), 400
+    if not file.filename.lower().endswith(".json"):
+        return jsonify({"error": "File must be in JSON format"}), 400
     try:
-        user = session.get('user')
+        user = session.get("user")
         # Create user-specific upload directory
         user_upload_folder = os.path.join(UPLOAD_FOLDER, user)
         os.makedirs(user_upload_folder, exist_ok=True)
         # Generate a secure filename using timestamp
-        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = secure_filename(f"{user}_{timestamp}.json")
         file_path = os.path.join(user_upload_folder, filename)
         file.save(file_path)
         # Read and parse file content
         file.seek(0)
-        file_content = file.read().decode('utf-8')
+        file_content = file.read().decode("utf-8")
         data = json.loads(file_content)
-        return jsonify({'success': True, 'message': 'File uploaded successfully', 'data': data, 'file_path': file_path}), 200
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "message": "File uploaded successfully",
+                    "data": data,
+                    "file_path": file_path,
+                }
+            ),
+            200,
+        )
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
 
 # Socket.IO events
-@socketio.on('connect')
+@socketio.on("connect")
 def connect(auth):
     """Handle client connection with more reliable approach"""
     try:
         # Get client IP for logging
         client_ip = request.remote_addr
         logger.info(f"Client connecting from IP: {client_ip}")
-        
+
         # Store connection info in a more reliable way
         # Use socket ID as identifier instead of session
         socket_id = request.sid
-        
+
         # Create a default room based on the client's IP or socket ID
         # This avoids relying on Flask sessions
         room_name = f"room_{socket_id}"
         join_room(room_name)
         logger.info(f"Client {socket_id} joined room {room_name}")
-        
+
         # Check if user credentials are provided in auth param
         username = None
-        if auth and isinstance(auth, dict) and 'username' in auth:
-            username = auth['username']
+        if auth and isinstance(auth, dict) and "username" in auth:
+            username = auth["username"]
             logger.info(f"User identified as: {username}")
             if username:
                 online_users.add(username)
-                socketio.emit('active_users', list(online_users))
-        
+                socketio.emit("active_users", list(online_users))
+
         # Always emit connection status to this specific client
-        emit('connection_status', {
-            'status': 'connected',
-            'client_ip': client_ip,
-            'socket_id': socket_id,
-            'username': username
-        })
-        
+        emit(
+            "connection_status",
+            {
+                "status": "connected",
+                "client_ip": client_ip,
+                "socket_id": socket_id,
+                "username": username,
+            },
+        )
+
         # If there's session data, try to use it as fallback
         # But don't rely on it for core functionality
         try:
-            if 'user' in session and session.get('active_character'):
-                emit('character_change', {'character': session.get('active_character')})
+            if "user" in session and session.get("active_character"):
+                emit("character_change", {"character": session.get("active_character")})
         except Exception as e:
             logger.warning(f"Session access failed (non-critical): {e}")
-            
+
         return True  # Return True to approve the connection
     except Exception as e:
         logger.error(f"Error in connection handler: {e}")
         # Still approve the connection even if there was an error
         return True
 
-@socketio.on('disconnect')
+
+@socketio.on("disconnect")
 def disconnect():
     """Handle client disconnection"""
-    if 'user' in session:
-        online_users.discard(session['user'])
-        socketio.emit('active_users', list(online_users))
+    if "user" in session:
+        online_users.discard(session["user"])
+        socketio.emit("active_users", list(online_users))
+
 
 # Add new socketio endpoint for activating a character
-@socketio.on('activate_character')
+@socketio.on("activate_character")
 def handle_activate_character(data):
     """Set active character through websocket"""
-    character_name = data.get('character')
+    character_name = data.get("character")
     if not character_name:
-        emit('activation_result', {'error': 'No character specified'})
+        emit("activation_result", {"error": "No character specified"})
         return
     if character_name not in character_profiles:
-        emit('activation_result', {'error': 'Character not found'})
+        emit("activation_result", {"error": "Character not found"})
         return
-    session['active_character'] = character_name
+    session["active_character"] = character_name
     logger.info(f"Manually activated character via websocket: {character_name}")
     setup_chat_history(character_name)
-    emit('character_change', {'character': character_name})
-    emit('activation_result', {'success': True, 'active_character': character_name})
+    emit("character_change", {"character": character_name})
+    emit("activation_result", {"success": True, "active_character": character_name})
 
-@socketio.on('request_ai_reply')
+
+@socketio.on("request_ai_reply")
 def handle_ai_reply_request(data):
     """Generate AI reply for a character"""
-    character_name = data.get('character', session.get('active_character'))
-    player_message = data.get('message', '')
-    player_name = data.get('player_name', 'Unknown')
-    context = data.get('context', None)
-    
+    character_name = data.get("character", session.get("active_character"))
+    player_message = data.get("message", "")
+    player_name = data.get("player_name", "Unknown")
+    context = data.get("context", None)
+
     if not character_name or not player_message:
-        emit('ai_reply', {'error': 'Missing character or message'})
+        emit("ai_reply", {"error": "Missing character or message"})
         return
-    
+
     # Log the request
-    logger.info(f"Generating AI reply for '{character_name}' responding to '{player_name}': '{player_message}'")
-    if context and context.get('messages'):
-        logger.info(f"Using context window with {len(context.get('messages', []))} messages")
-    
+    logger.info(
+        f"Generating AI reply for '{character_name}' responding to '{player_name}': '{player_message}'"
+    )
+    if context and context.get("messages"):
+        logger.info(
+            f"Using context window with {len(context.get('messages', []))} messages"
+        )
+
     # Generate responses with context if available
-    responses = generate_in_character_reply(character_name, player_message, context=context)
-    
+    responses = generate_in_character_reply(
+        character_name, player_message, context=context
+    )
+
     # Make sure responses don't have em dashes
     responses = [remove_em_dashes(response) for response in responses]
-    
+
     # Save this interaction to history
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     save_to_history(
-        character_name, 
-        f"Request to respond to {player_name}: {player_message}", 
-        "system", 
-        timestamp
+        character_name,
+        f"Request to respond to {player_name}: {player_message}",
+        "system",
+        timestamp,
     )
-    
-    emit('ai_reply', {
-        'character': character_name,
-        'responses': responses,
-        'original_message': player_message,
-        'player_name': player_name
-    })
+
+    emit(
+        "ai_reply",
+        {
+            "character": character_name,
+            "responses": responses,
+            "original_message": player_message,
+            "player_name": player_name,
+        },
+    )
+
 
 # Add route for manual message response
-@app.route('/api/respond', methods=['POST'])
+@app.route("/api/respond", methods=["POST"])
 def manual_respond():
     """Manually generate a response to a specific message"""
     data = request.json
-    character_name = data.get('character', session.get('active_character'))
-    player_message = data.get('message', '')
-    player_name = data.get('player_name', 'Unknown')
-    context = data.get('context', None)
-    
+    character_name = data.get("character", session.get("active_character"))
+    player_message = data.get("message", "")
+    player_name = data.get("player_name", "Unknown")
+    context = data.get("context", None)
+
     if not character_name or not player_message:
-        return jsonify({'error': 'Missing character or message'}), 400
-    
+        return jsonify({"error": "Missing character or message"}), 400
+
     # Generate response with context if available
-    responses = generate_in_character_reply(character_name, player_message, context=context)
-    
+    responses = generate_in_character_reply(
+        character_name, player_message, context=context
+    )
+
     # Save to history
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     save_to_history(
-        character_name, 
-        f"Manual request to respond to {player_name}: {player_message}", 
-        "system", 
-        timestamp
+        character_name,
+        f"Manual request to respond to {player_name}: {player_message}",
+        "system",
+        timestamp,
     )
-    
-    return jsonify({
-        'character': character_name,
-        'responses': responses,
-        'original_message': player_message,
-        'player_name': player_name
-    })
+
+    return jsonify(
+        {
+            "character": character_name,
+            "responses": responses,
+            "original_message": player_message,
+            "player_name": player_name,
+        }
+    )
+
 
 # Start chat monitor thread
 def start_monitor():
     global chat_monitor_thread, running, character_profiles
-    
+
     # Load character profiles from the manager module
     character_profiles = character_manager.load_all_profiles()
     logger.info(f"Loaded {len(character_profiles)} character profiles")
-    
+
     # Start the monitor thread
     running = True
     chat_monitor_thread = threading.Thread(target=monitor_chat)
     chat_monitor_thread.daemon = True
     chat_monitor_thread.start()
 
+
 def save_feedback(character_name, message_data, response, rating, notes=""):
     """Save feedback on a character's response"""
     if not character_name:
         return {"error": "No character specified"}
-    
+
     # Create character-specific feedback directory
-    user = session.get('user', 'default')
-    feedback_dir = os.path.join(FEEDBACK_DIR, user, character_name.replace(' ', '_'))
+    user = session.get("user", "default")
+    feedback_dir = os.path.join(FEEDBACK_DIR, user, character_name.replace(" ", "_"))
     os.makedirs(feedback_dir, exist_ok=True)
-    
+
     # Create the feedback entry
     feedback_entry = {
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1011,21 +1145,21 @@ def save_feedback(character_name, message_data, response, rating, notes=""):
         "rating": rating,  # 1 = positive, 0 = negative
         "notes": notes,
     }
-    
+
     # Generate a unique filename
     filename = f"feedback_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     filepath = os.path.join(feedback_dir, filename)
-    
+
     # Save feedback to file
     try:
-        with open(filepath, 'w', encoding='utf-8') as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             json.dump(feedback_entry, f, indent=2)
-        
+
         # Update feedback summary
         summary_file = os.path.join(feedback_dir, "feedback_summary.json")
-        
+
         if os.path.exists(summary_file):
-            with open(summary_file, 'r', encoding='utf-8') as f:
+            with open(summary_file, "r", encoding="utf-8") as f:
                 summary = json.load(f)
         else:
             summary = {
@@ -1033,50 +1167,57 @@ def save_feedback(character_name, message_data, response, rating, notes=""):
                 "positive_feedback": 0,
                 "negative_feedback": 0,
                 "feedback_ratio": 0.0,
-                "recent_feedbacks": []
+                "recent_feedbacks": [],
             }
-        
+
         # Update the summary stats
         summary["total_responses"] += 1
         if rating == 1:
             summary["positive_feedback"] += 1
         else:
             summary["negative_feedback"] += 1
-            
+
         # Calculate ratio
         if summary["total_responses"] > 0:
-            summary["feedback_ratio"] = summary["positive_feedback"] / summary["total_responses"]
-            
+            summary["feedback_ratio"] = (
+                summary["positive_feedback"] / summary["total_responses"]
+            )
+
         # Add to recent feedbacks (keep last 10)
         recent_entry = {
             "timestamp": feedback_entry["timestamp"],
-            "message_snippet": feedback_entry["message"][:50] + "..." if len(feedback_entry["message"]) > 50 else feedback_entry["message"],
+            "message_snippet": (
+                feedback_entry["message"][:50] + "..."
+                if len(feedback_entry["message"]) > 50
+                else feedback_entry["message"]
+            ),
             "rating": rating,
-            "filename": filename
+            "filename": filename,
         }
-        
+
         summary["recent_feedbacks"].insert(0, recent_entry)
         summary["recent_feedbacks"] = summary["recent_feedbacks"][:10]
-        
+
         # Save updated summary
-        with open(summary_file, 'w', encoding='utf-8') as f:
+        with open(summary_file, "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2)
-            
+
         return {"success": True, "file": filepath}
-    
+
     except Exception as e:
         logger.error(f"Error saving feedback: {e}")
         return {"error": str(e)}
+
 
 def get_character_feedback_summary(character_name):
     """Get the feedback summary for a character"""
     if not character_name:
         return {"error": "No character specified"}
-    
-    user = session.get('user', 'default')
-    feedback_dir = os.path.join(FEEDBACK_DIR, user, character_name.replace(' ', '_'))
+
+    user = session.get("user", "default")
+    feedback_dir = os.path.join(FEEDBACK_DIR, user, character_name.replace(" ", "_"))
     summary_file = os.path.join(feedback_dir, "feedback_summary.json")
-    
+
     if not os.path.exists(summary_file):
         return {
             "character": character_name,
@@ -1084,51 +1225,55 @@ def get_character_feedback_summary(character_name):
             "positive_feedback": 0,
             "negative_feedback": 0,
             "feedback_ratio": 0.0,
-            "recent_feedbacks": []
+            "recent_feedbacks": [],
         }
-    
+
     try:
-        with open(summary_file, 'r', encoding='utf-8') as f:
+        with open(summary_file, "r", encoding="utf-8") as f:
             summary = json.load(f)
-        
+
         summary["character"] = character_name
         return summary
-    
+
     except Exception as e:
         logger.error(f"Error reading feedback summary: {e}")
         return {"error": str(e)}
 
-@app.route('/api/feedback/<character>', methods=['POST'])
+
+@app.route("/api/feedback/<character>", methods=["POST"])
 def submit_feedback(character):
     """Submit feedback for a character response"""
     data = request.json
-    rating = data.get('rating', 0)  # 1 = positive, 0 = negative
-    response = data.get('response', '')
-    message_data = data.get('message_data', {})
-    notes = data.get('notes', '')
-    
+    rating = data.get("rating", 0)  # 1 = positive, 0 = negative
+    response = data.get("response", "")
+    message_data = data.get("message_data", {})
+    notes = data.get("notes", "")
+
     result = save_feedback(character, message_data, response, rating, notes)
     return jsonify(result)
 
-@app.route('/api/feedback/<character>', methods=['GET'])
+
+@app.route("/api/feedback/<character>", methods=["GET"])
 def get_feedback(character):
     """Get feedback summary for a character"""
     summary = get_character_feedback_summary(character)
     return jsonify(summary)
 
-@socketio.on('submit_feedback')
+
+@socketio.on("submit_feedback")
 def handle_feedback(data):
     """Handle feedback submission through websocket"""
-    character = data.get('character', session.get('active_character'))
-    rating = data.get('rating', 0)
-    response = data.get('response', '')
-    message_data = data.get('message_data', {})
-    notes = data.get('notes', '')
-    
-    result = save_feedback(character, message_data, response, rating, notes)
-    emit('feedback_result', result)
+    character = data.get("character", session.get("active_character"))
+    rating = data.get("rating", 0)
+    response = data.get("response", "")
+    message_data = data.get("message_data", {})
+    notes = data.get("notes", "")
 
-@socketio.on('log_update')
+    result = save_feedback(character, message_data, response, rating, notes)
+    emit("feedback_result", result)
+
+
+@socketio.on("log_update")
 def handle_log_update_socket(data):
     """Receive log updates over Socket.IO from NWN Log Client."""
     try:
@@ -1137,8 +1282,13 @@ def handle_log_update_socket(data):
             logger.warning("log_update payload is not a dict: %s", type(data))
             return
 
-        client = data.get('client') or data.get('client_name') or data.get('username') or 'default'
-        lines = data.get('lines')
+        client = (
+            data.get("client")
+            or data.get("client_name")
+            or data.get("username")
+            or "default"
+        )
+        lines = data.get("lines")
         if lines is None:
             logger.warning("log_update payload missing 'lines'")
             return
@@ -1152,153 +1302,191 @@ def handle_log_update_socket(data):
             return
 
         if lines_list:
-            logger.info("log_update (socket) lines preview (up to 5): %s", lines_list[:5])
-            LAST_LOG_UPDATE.update({
-                "timestamp": datetime.datetime.now().isoformat(),
-                "source": "socketio",
-                "client": client,
-                "lines_preview": lines_list[:5],
-            })
+            logger.info(
+                "log_update (socket) lines preview (up to 5): %s", lines_list[:5]
+            )
+            LAST_LOG_UPDATE.update(
+                {
+                    "timestamp": datetime.datetime.now().isoformat(),
+                    "source": "socketio",
+                    "client": client,
+                    "lines_preview": lines_list[:5],
+                }
+            )
             log_text = "\n".join(lines_list)
-            user_characters = {name: profile for name, profile in character_profiles.items()
-                               if profile.get('owner') == client}
-            process_new_messages(log_text, client=client, user_characters=user_characters)
+            user_characters = {
+                name: profile
+                for name, profile in character_profiles.items()
+                if profile.get("owner") == client
+            }
+            process_new_messages(
+                log_text, client=client, user_characters=user_characters
+            )
     except Exception as e:
         logger.error("Error processing Socket.IO log_update: %s", e)
 
-@app.route('/api/log_update', methods=['POST'])
+
+@app.route("/api/log_update", methods=["POST"])
 def log_update():
     """Endpoint to receive log updates from NWN Log Client."""
     try:
         data = request.get_json() or request.form.to_dict()
         app.logger.info("Received log update: %s", data)
         try:
-            if isinstance(data, dict) and 'lines' in data:
-                preview_lines = data['lines'][:5] if isinstance(data['lines'], list) else data['lines']
+            if isinstance(data, dict) and "lines" in data:
+                preview_lines = (
+                    data["lines"][:5]
+                    if isinstance(data["lines"], list)
+                    else data["lines"]
+                )
                 app.logger.info("log_update lines preview (up to 5): %s", preview_lines)
-                LAST_LOG_UPDATE.update({
-                    "timestamp": datetime.datetime.now().isoformat(),
-                    "source": "http",
-                    "client": data.get('client', 'default') if isinstance(data, dict) else None,
-                    "lines_preview": preview_lines if isinstance(preview_lines, list) else [preview_lines],
-                })
+                LAST_LOG_UPDATE.update(
+                    {
+                        "timestamp": datetime.datetime.now().isoformat(),
+                        "source": "http",
+                        "client": (
+                            data.get("client", "default")
+                            if isinstance(data, dict)
+                            else None
+                        ),
+                        "lines_preview": (
+                            preview_lines
+                            if isinstance(preview_lines, list)
+                            else [preview_lines]
+                        ),
+                    }
+                )
         except Exception as log_err:
             app.logger.warning("Failed to log line preview: %s", log_err)
-        
-        if 'lines' in data:
-            log_text = "\n".join(data['lines'])
-            client = data.get('client', 'default')
-            
+
+        if "lines" in data:
+            log_text = "\n".join(data["lines"])
+            client = data.get("client", "default")
+
             # Get the user's characters
-            user_characters = {name: profile for name, profile in character_profiles.items() 
-                              if profile.get('owner') == client}
-            
+            user_characters = {
+                name: profile
+                for name, profile in character_profiles.items()
+                if profile.get("owner") == client
+            }
+
             # Process messages with global broadcast
-            process_new_messages(log_text, client=client, user_characters=user_characters)
-            
+            process_new_messages(
+                log_text, client=client, user_characters=user_characters
+            )
+
         return jsonify(success=True), 200
     except Exception as e:
         app.logger.error("Error processing log update: %s", e)
         return jsonify(success=False, error=str(e)), 500
 
-@app.route('/debug_last_log')
+
+@app.route("/debug_last_log")
 def debug_last_log():
     """Quick sanity check to see last log_update received."""
     return jsonify(LAST_LOG_UPDATE)
 
+
 # Load server configuration
 def load_server_config():
     """Load server configuration from config.ini"""
-    host = '0.0.0.0'  # Default host for IPv4 (all interfaces)
-    port = 5000       # Default port
-    
+    host = "0.0.0.0"  # Default host for IPv4 (all interfaces)
+    port = 5000  # Default port
+
     try:
         import configparser
+
         config = configparser.ConfigParser()
-        if os.path.exists('config.ini'):
-            config.read('config.ini')
-            if 'Server' in config:
-                if 'HOST' in config['Server']:
-                    host = config['Server']['HOST']
-                if 'PORT' in config['Server']:
-                    port = int(config['Server']['PORT'])
+        if os.path.exists("config.ini"):
+            config.read("config.ini")
+            if "Server" in config:
+                if "HOST" in config["Server"]:
+                    host = config["Server"]["HOST"]
+                if "PORT" in config["Server"]:
+                    port = int(config["Server"]["PORT"])
             logger.info(f"Server will bind to {host}:{port}")
     except Exception as e:
         logger.error(f"Error loading server config: {e}")
         logger.error(f"Using default host:port {host}:{port}")
-    
+
     return host, port
 
-@app.route('/edit-character')
+
+@app.route("/edit-character")
 @login_required
 def edit_character_form():
     """Render the character edit form"""
-    return render_template('edit_character.html')
+    return render_template("edit_character.html")
 
-@app.route('/api/character/<n>/update', methods=['POST'])
+
+@app.route("/api/character/<n>/update", methods=["POST"])
 @login_required
 def update_character(n):
     """Update an existing character profile if owned by current user"""
     data = request.json
-    
+
     if not data:
-        return jsonify({'error': 'No data provided'}), 400
-    
+        return jsonify({"error": "No data provided"}), 400
+
     if n not in character_profiles:
-        return jsonify({'error': 'Character not found'}), 404
-    
-    if character_profiles[n].get('owner') != session.get('user'):
-        return jsonify({'error': 'Unauthorized'}), 403
+        return jsonify({"error": "Character not found"}), 404
+
+    if character_profiles[n].get("owner") != session.get("user"):
+        return jsonify({"error": "Unauthorized"}), 403
 
     result = character_manager.update_profile(n, data)
-    
-    if 'error' in result:
+
+    if "error" in result:
         return jsonify(result), 400
-    
+
     character_profiles.update(character_manager.load_all_profiles())
-    
+
     return jsonify(result)
 
-@app.route('/api/character/<n>/import-json', methods=['POST'])
+
+@app.route("/api/character/<n>/import-json", methods=["POST"])
 @login_required
 def import_json_profile(n):
     """Import a character profile from JSON data if owned by current user"""
     if n not in character_profiles:
-        return jsonify({'error': 'Character not found'}), 404
+        return jsonify({"error": "Character not found"}), 404
 
-    if 'json_file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
-        
-    file = request.files['json_file']
-    
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-        
-    if not file.filename.lower().endswith('.json'):
-        return jsonify({'error': 'File must be in JSON format'}), 400
-    
+    if "json_file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files["json_file"]
+
+    if file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
+
+    if not file.filename.lower().endswith(".json"):
+        return jsonify({"error": "File must be in JSON format"}), 400
+
     try:
-        json_data = file.read().decode('utf-8')
+        json_data = file.read().decode("utf-8")
         data = json.loads(json_data)
-        
-        data['name'] = n
-        
-        if character_profiles[n].get('owner') != session.get('user'):
-            return jsonify({'error': 'Unauthorized'}), 403
+
+        data["name"] = n
+
+        if character_profiles[n].get("owner") != session.get("user"):
+            return jsonify({"error": "Unauthorized"}), 403
 
         result = character_manager.update_profile(n, data)
-        
-        if 'error' in result:
+
+        if "error" in result:
             return jsonify(result), 400
-            
+
         character_profiles.update(character_manager.load_all_profiles())
-        
-        return jsonify({'success': True, 'message': f"Profile for {n} updated from JSON file"})
-        
+
+        return jsonify(
+            {"success": True, "message": f"Profile for {n} updated from JSON file"}
+        )
+
     except json.JSONDecodeError:
-        return jsonify({'error': 'Invalid JSON format'}), 400
+        return jsonify({"error": "Invalid JSON format"}), 400
     except Exception as e:
-        return jsonify({'error': f'Error processing file: {str(e)}'}), 500
+        return jsonify({"error": f"Error processing file: {str(e)}"}), 500
+
 
 # New endpoint to set the OpenAI API token for the session
 @app.route("/set_openai_token", methods=["POST"])
@@ -1309,17 +1497,18 @@ def set_openai_token():
     session["openai_token"] = token
     return jsonify({"success": True, "message": "Token set successfully"})
 
+
 # --- Multi-tone response generation endpoint ---
-@app.route('/generate_response', methods=['POST'])
+@app.route("/generate_response", methods=["POST"])
 def generate_response():
     try:
         # Get the latest user message from the request payload
         data = request.get_json(force=True)
-        user_message = data.get('message', '')
+        user_message = data.get("message", "")
 
         # Retrieve or initialize the chat history from session
-        chat_history = session.get('chat_history', [])
-        chat_history.append({'role': 'User', 'message': user_message})
+        chat_history = session.get("chat_history", [])
+        chat_history.append({"role": "User", "message": user_message})
 
         # Build the conversation text from history
         conversation_text = ""
@@ -1338,154 +1527,177 @@ def generate_response():
 
         # Call the OpenAI API (ensure OPENAI_API_KEY is set in environment variables)
         import openai, os, re
-        openai.api_key = os.getenv('OPENAI_API_KEY')
+
+        openai.api_key = os.getenv("OPENAI_API_KEY")
         response = openai.Completion.create(
-            engine='text-davinci-003',
+            engine="text-davinci-003",
             prompt=conversation_text,
             max_tokens=150,
             temperature=0.7,
-            n=1
+            n=1,
         )
         response_text = response.choices[0].text.strip()
 
         # Parse the response to extract three numbered answers
-        matches = re.split(r'\n?\s*\d\.\s*', response_text)
+        matches = re.split(r"\n?\s*\d\.\s*", response_text)
         options = [m.strip() for m in matches[1:4] if m.strip()]
-        options = [re.sub(r'\s*\n\s*', ' ', opt).strip() for opt in options]
+        options = [re.sub(r"\s*\n\s*", " ", opt).strip() for opt in options]
         while len(options) < 3:
             options.append("")
 
         # Save the updated chat history back to the session
-        session['chat_history'] = chat_history
-        return jsonify({
-            'responses': options,
-            'positive': options[0],
-            'neutral': options[1],
-            'negative': options[2]
-        })
+        session["chat_history"] = chat_history
+        return jsonify(
+            {
+                "responses": options,
+                "positive": options[0],
+                "neutral": options[1],
+                "negative": options[2],
+            }
+        )
     except Exception as e:
-        return jsonify({'error': str(e)})
+        return jsonify({"error": str(e)})
+
 
 # Debug endpoint to get current server state
-@app.route('/debug')
+@app.route("/debug")
 def debug_info():
     import datetime
+
     # If no active character is set, default to the first character owned by the current user
-    if not session.get('active_character'):
-        current_user = session.get('user')
+    if not session.get("active_character"):
+        current_user = session.get("user")
         for name, profile in character_profiles.items():
-            if profile.get('owner') == current_user:
-                session['active_character'] = name
+            if profile.get("owner") == current_user:
+                session["active_character"] = name
                 logger.info(f"Default active_character set to {name} in /debug")
-                socketio.emit('character_change', {'character': name})
+                socketio.emit("character_change", {"character": name})
                 break
 
     debug_data = {
         "server_time": datetime.datetime.now().isoformat(),
-        "active_character": session.get('active_character'),
-        "user": session.get('user'),
-        "character_profiles": list(character_profiles.keys())
+        "active_character": session.get("active_character"),
+        "user": session.get("user"),
+        "character_profiles": list(character_profiles.keys()),
     }
     return jsonify(debug_data)
 
+
 # WebSocket debug page
-@app.route('/debug_websocket')
+@app.route("/debug_websocket")
 def debug_websocket():
-    return render_template('debug_websocket.html')
+    return render_template("debug_websocket.html")
+
 
 # Add route for context window documentation
-@app.route('/context-window')
+@app.route("/context-window")
 def context_window_docs():
     """Render the context window documentation page"""
-    return render_template('context_window.html')
+    return render_template("context_window.html")
+
 
 # Add route for SVG test
-@app.route('/svg-test')
+@app.route("/svg-test")
 def svg_test():
     """Render the SVG test page"""
-    return render_template('svg_test.html')
+    return render_template("svg_test.html")
+
 
 # Add route for embedded SVG version
-@app.route('/context-window-embed')
+@app.route("/context-window-embed")
 def context_window_embed():
     """Render the context window documentation with embedded SVG"""
-    return render_template('context_window_embed.html')
+    return render_template("context_window_embed.html")
+
 
 # Health check endpoint
-@app.route('/health')
+@app.route("/health")
 def health_check():
     """Simple health check endpoint to verify server is responsive"""
-    return jsonify({
-        'status': 'ok',
-        'timestamp': datetime.datetime.now().isoformat(),
-        'socket_io_enabled': True,
-        'transport_modes': ['polling', 'websocket']  # Hardcoded to match initialization
-    })
+    return jsonify(
+        {
+            "status": "ok",
+            "timestamp": datetime.datetime.now().isoformat(),
+            "socket_io_enabled": True,
+            "transport_modes": [
+                "polling",
+                "websocket",
+            ],  # Hardcoded to match initialization
+        }
+    )
+
 
 # Socket.IO specific health check endpoint that doesn't require auth
-@app.route('/socket_health')
+@app.route("/socket_health")
 def socket_health_check():
     """Socket.IO specific health check that doesn't require authentication"""
     # Create a simple ping event handler if it doesn't exist
     try:
-        @socketio.on('socket_ping')
+
+        @socketio.on("socket_ping")
         def handle_socket_ping():
-            emit('socket_pong', {'time': datetime.datetime.now().isoformat()})
+            emit("socket_pong", {"time": datetime.datetime.now().isoformat()})
+
     except Exception as e:
         logger.error(f"Error setting up socket_ping handler: {e}")
-        
+
     # Get basic info that should be available, or provide defaults
-    async_mode = getattr(socketio, 'async_mode', 'eventlet')
-    
+    async_mode = getattr(socketio, "async_mode", "eventlet")
+
     # Return a simplified health check response
-    return jsonify({
-        'status': 'ok',
-        'timestamp': datetime.datetime.now().isoformat(),
-        'async_mode': async_mode,
-        'transports': ['polling', 'websocket'],  # Hardcoded to match initialization
-        'socket_io_enabled': True
-    })
+    return jsonify(
+        {
+            "status": "ok",
+            "timestamp": datetime.datetime.now().isoformat(),
+            "async_mode": async_mode,
+            "transports": ["polling", "websocket"],  # Hardcoded to match initialization
+            "socket_io_enabled": True,
+        }
+    )
+
 
 # Test message endpoint for debugging
-@app.route('/debug_send_message', methods=['POST'])
+@app.route("/debug_send_message", methods=["POST"])
 def debug_send_message():
     """Endpoint to manually send a test message to all clients"""
     try:
         data = request.get_json()
-        if not data or 'message' not in data:
-            return jsonify({'error': 'No message provided'}), 400
-            
-        test_message = data['message']
-        client = data.get('client', 'test_client')
-        character = data.get('character', 'Test Character')
-        
+        if not data or "message" not in data:
+            return jsonify({"error": "No message provided"}), 400
+
+        test_message = data["message"]
+        client = data.get("client", "test_client")
+        character = data.get("character", "Test Character")
+
         # Format a test message like it would come from the game
         test_line = f"[{client}] {character}: [Talk] {test_message}"
-        
+
         logger.info(f"Sending test message: {test_line}")
-        
+
         # Create a test user_characters dict
-        user_characters = {character: {'owner': client}}
-        
+        user_characters = {character: {"owner": client}}
+
         # Process the message
         process_new_messages(test_line, client=client, user_characters=user_characters)
-        
-        return jsonify({'success': True, 'message': 'Test message sent'}), 200
+
+        return jsonify({"success": True, "message": "Test message sent"}), 200
     except Exception as e:
         logger.error(f"Error sending test message: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
 
 # Ping handler for testing WebSocket connection
-@socketio.on('ping')
+@socketio.on("ping")
 def handle_ping(data=None):
     """Handle ping event for testing connection latency"""
-    emit('pong', {'time': datetime.datetime.now().isoformat()})
+    emit("pong", {"time": datetime.datetime.now().isoformat()})
+
 
 # Simple Socket.IO test page (no auth required)
-@app.route('/socket_test')
+@app.route("/socket_test")
 def socket_test():
     """Simple Socket.IO test page that doesn't require authentication"""
-    return '''
+    return """
     <!DOCTYPE html>
     <html>
     <head>
@@ -1662,12 +1874,13 @@ def socket_test():
         </script>
     </body>
     </html>
-    '''
+    """
 
-@app.route('/external_test')
+
+@app.route("/external_test")
 def external_test():
     """Ultra-simplified Socket.IO test page for external connections with no dependencies"""
-    return '''
+    return """
     <!DOCTYPE html>
     <html>
     <head>
@@ -1835,35 +2048,41 @@ def external_test():
         </script>
     </body>
     </html>
-    '''
+    """
 
-@app.route('/api/external/ping', methods=['GET'])
+
+@app.route("/api/external/ping", methods=["GET"])
 def external_ping():
     """Simple endpoint for external clients to test connectivity with no auth"""
-    return jsonify({
-        'status': 'ok',
-        'timestamp': datetime.datetime.now().isoformat(),
-        'message': 'External API endpoint is working',
-        'server_info': {
-            'socketio_enabled': True,
-            'ip': request.remote_addr,
-            'cors_allowed': '*'
+    return jsonify(
+        {
+            "status": "ok",
+            "timestamp": datetime.datetime.now().isoformat(),
+            "message": "External API endpoint is working",
+            "server_info": {
+                "socketio_enabled": True,
+                "ip": request.remote_addr,
+                "cors_allowed": "*",
+            },
         }
-    })
+    )
+
 
 # --- New Route for Downloading nwnclientlog ---
-@app.route('/download/nwnclientlog')
+@app.route("/download/nwnclientlog")
 def download_nwnclientlog():
     import os
     from flask import send_from_directory, abort
+
     # Define the directory where the log file is stored (updated to use the 'download' folder)
-    log_directory = os.path.join(app.root_path, 'download')
+    log_directory = os.path.join(app.root_path, "download")
     # Define the log filename; adjust the filename if needed
-    log_filename = 'NWN Log Client.zip'
+    log_filename = "NWN Log Client.zip"
     try:
         return send_from_directory(log_directory, log_filename, as_attachment=True)
     except FileNotFoundError:
         abort(404)
+
 
 # --- End of nwnclientlog download route ---
 
@@ -1872,16 +2091,17 @@ if __name__ == "__main__":
     # Check if eventlet is properly patched
     logger.info("Checking eventlet monkey patching status:")
     import socket
+
     logger.info(f"socket.socket patched: {hasattr(socket.socket, '_eventlet_patched')}")
-    
+
     # Start monitor thread
     start_monitor()
-    
+
     # Load server configuration
     host, port = load_server_config()
-    
+
     logger.info(f"Starting server on {host}:{port}")
-    
+
     # Run with eventlet
     run_kwargs = {
         "debug": False,
@@ -1902,4 +2122,4 @@ if __name__ == "__main__":
     )
 else:
     # For gunicorn or other WSGI servers
-    start_monitor() 
+    start_monitor()
