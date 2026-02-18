@@ -46,7 +46,7 @@ To learn more about our NWNX:EE Chatbot, pricing, and implementation details, pl
 
 ## Contact
 
-For further information or to schedule a demo, please email [ffmtelecom@gmail.com](mailto:ffmtelecom@gmail.com).
+For further information or to schedule a demo, please email ....(tired of phishings)
 
 ## License
 
