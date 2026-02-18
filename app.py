@@ -17,16 +17,23 @@ from flask import (
     jsonify,
     send_from_directory,
     session,
-    redirect,
-    url_for,
-    flash,
     abort,
 )
-from flask_socketio import SocketIO, emit, join_room
+from flask_socketio import SocketIO
 from dotenv import load_dotenv
 import openai
 import character_manager  # Import the character manager module
-from functools import wraps
+from nwn_persona_web import chat_processing
+from nwn_persona_web.auth import login_required, register_auth_routes
+from nwn_persona_web.settings import (
+    CHARACTER_PROFILES_DIR,
+    CHAT_HISTORY_DIR,
+    FEEDBACK_DIR,
+    UPLOAD_FOLDER,
+    ensure_runtime_dirs,
+)
+from nwn_persona_web.socketio_server import register_socketio_handlers
+from nwn_persona_web.storage import load_users
 from werkzeug.utils import secure_filename
 
 import logging
@@ -54,40 +61,6 @@ socketio_logger.setLevel(logging.DEBUG)
 
 # Load environment variables
 load_dotenv()
-
-# Configuration
-CHARACTER_PROFILES_DIR = "character_profiles"
-CHAT_HISTORY_DIR = "chat_history"
-FEEDBACK_DIR = "feedback_data"
-# No local log file path - we only receive logs via WebSocket/API
-SYSTEM_PATTERN = r"\[Talk\] (?:What would you like to do\?|Please choose section:|<c>\[.*?\]</c>|Crafting Menu|Back|Cancel)"
-
-# Add persistent user storage at the top of the file (after other imports)
-USERS_FILE = "users.json"
-
-UPLOAD_FOLDER = "uploads/character_json"
-
-
-def load_users() -> Dict[str, Any]:
-    """Load user accounts from a JSON file."""
-    if os.path.exists(USERS_FILE):
-        try:
-            with open(USERS_FILE, "r") as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f"Error loading users: {e}")
-            return {}
-    return {}
-
-
-def save_users(users: Dict[str, Any]) -> None:
-    """Save user accounts to a JSON file."""
-    try:
-        with open(USERS_FILE, "w") as f:
-            json.dump(users, f, indent=2)
-    except Exception as e:
-        logger.error(f"Error saving users: {e}")
-
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -118,28 +91,7 @@ socketio = SocketIO(
 ## Authentication Routes
 #####################################
 users = load_users()
-
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        username = request.form.get("username")
-        password = request.form.get("password")
-        if username in users and users[username] == password:
-            session["user"] = username
-            flash("Logged in successfully!", "success")
-            return redirect(url_for("index"))
-        else:
-            flash("Invalid username or password", "error")
-            return redirect(url_for("login"))
-    return render_template("login.html")
-
-
-@app.route("/logout")
-def logout():
-    session.pop("user", None)
-    flash("Logged out", "success")
-    return redirect(url_for("login"))
+register_auth_routes(app, users)
 
 
 @app.route("/favicon.ico")
@@ -149,25 +101,6 @@ def favicon():
         "favicon.ico",
         mimetype="image/vnd.microsoft.icon",
     )
-
-
-@app.route("/register", methods=["GET", "POST"])
-def register():
-    if request.method == "POST":
-        username = request.form.get("username")
-        password = request.form.get("password")
-        confirm_password = request.form.get("confirm_password")
-        if username in users:
-            flash("Username already exists", "error")
-            return redirect(url_for("register"))
-        if password != confirm_password:
-            flash("Passwords do not match", "error")
-            return redirect(url_for("register"))
-        users[username] = password
-        save_users(users)
-        flash("Registration successful! Please log in.", "success")
-        return redirect(url_for("login"))
-    return render_template("register.html")
 
 
 # OpenAI Configuration: Token will now be provided per session via API Token Configuration.
@@ -192,9 +125,7 @@ last_position = 0
 online_users = set()
 
 # Setup directories
-os.makedirs(CHAT_HISTORY_DIR, exist_ok=True)
-os.makedirs(CHARACTER_PROFILES_DIR, exist_ok=True)
-os.makedirs(FEEDBACK_DIR, exist_ok=True)
+ensure_runtime_dirs()
 
 
 # Load character profiles
@@ -224,506 +155,11 @@ def detect_character(line: str) -> Optional[str]:
             socketio.emit("character_change", {"character": character_name})
 
             # Set up chat history for this character
-            setup_chat_history(character_name)
+            chat_processing.setup_chat_history(character_name, logger=logger)
 
         return character_name
 
     return None
-
-
-# Setup chat history
-def setup_chat_history(character_name: str) -> None:
-    """Set up directory for character chat history."""
-    user = session.get("user", "default")
-    character_dir = os.path.join(
-        CHAT_HISTORY_DIR, user, character_name.replace(" ", "_")
-    )
-    os.makedirs(character_dir, exist_ok=True)
-    logger.info(
-        f"Chat history directory for {character_name} of user {user}: {character_dir}"
-    )
-
-
-# Save to chat history
-def save_to_history(
-    character_name: str, message: str, sender: str, timestamp: Optional[str] = None
-) -> None:
-    """Save a message to the character's chat history."""
-    if not timestamp:
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    try:
-        user = session.get("user", "default")
-        character_dir = os.path.join(
-            CHAT_HISTORY_DIR, user, character_name.replace(" ", "_")
-        )
-        history_file = os.path.join(character_dir, "chat_history.json")
-
-        if os.path.exists(history_file):
-            with open(history_file, "r", encoding="utf-8") as f:
-                history = json.load(f)
-        else:
-            history = []
-
-        history.append({"timestamp": timestamp, "sender": sender, "message": message})
-
-        with open(history_file, "w", encoding="utf-8") as f:
-            json.dump(history, f, indent=2)
-
-    except Exception as e:
-        logger.error(f"Error saving to chat history: {e}")
-
-
-# Chat monitor function
-def monitor_chat() -> None:
-    """Monitor chat via WebSocket/API (no local file monitoring)."""
-    logger.info("Starting chat monitor - waiting for logs via WebSocket/API")
-    logger.info("No local file monitoring - all logs come from remote clients")
-
-    # Just keep the thread alive to receive WebSocket messages
-    while running:
-        time.sleep(5)  # Just sleep, actual processing happens in socket handlers
-
-
-# Process new messages
-def process_new_messages(
-    data: str,
-    client=None,
-    user_characters=None,
-    override_character: Optional[str] = None,
-) -> None:
-    """Process incoming chat messages and emit events to clients."""
-    lines = data.strip().split("\n")
-    logger.info(f"Processing {len(lines)} new message lines")
-    logger.info(
-        f"process_new_messages: client={client} user_characters={len(user_characters) if user_characters else 0} override_character={override_character}"
-    )
-
-    active_char = None
-
-    # Use provided characters or get all if not provided
-    if not user_characters and client:
-        user_characters = {
-            name: profile
-            for name, profile in character_profiles.items()
-            if profile.get("owner") == client
-        }
-
-    # If no active character is set but we have user characters, use the first one
-    if user_characters:
-        # Get the first character for this user if they have any
-        if not active_char and len(user_characters) > 0:
-            active_char = next(iter(user_characters.keys()))
-            logger.info(
-                f"Default active_character set to {active_char} for client {client}"
-            )
-
-    for line in lines:
-        # Skip empty lines
-        if not line.strip():
-            continue
-
-        # Skip lines with <c> tags - these are item/action notifications, not chat
-        if "<c>" in line and "</c>" in line:
-            logger.info(f"Skipping system notification: {line[:30]}...")
-            continue
-
-        # Use override_character if provided, otherwise detect from line
-        character_name = override_character
-        if not character_name:
-            # For log API updates, use the client's active character
-            character_name = active_char
-
-            # Try to detect character from line
-            for char_name in user_characters.keys():
-                if f"[{client}] {char_name}" in line:
-                    character_name = char_name
-                    break
-
-        if not character_name and not client:
-            continue
-
-        # Check if this is the client's own character's message
-        is_own_message = client and f"[{client}]" in line
-
-        # Check if this is likely a system menu message
-        is_system_message = is_own_message and re.search(SYSTEM_PATTERN, line)
-
-        if is_system_message:
-            # This is a system message, we'll ignore it
-            logger.info(f"Skipping system menu message: {line[:30]}...")
-            continue
-
-        logger.info(f"Processing chat message: {line[:50]}...")
-
-        # Save the message if we have a character
-        if character_name:
-            # Create in-memory record only - don't rely on session
-            try:
-                user = client or "default"
-                character_dir = os.path.join(
-                    CHAT_HISTORY_DIR, user, character_name.replace(" ", "_")
-                )
-                os.makedirs(character_dir, exist_ok=True)
-
-                history_file = os.path.join(character_dir, "chat_history.json")
-
-                timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-                if os.path.exists(history_file):
-                    with open(history_file, "r", encoding="utf-8") as f:
-                        history = json.load(f)
-                else:
-                    history = []
-
-                history.append(
-                    {
-                        "timestamp": timestamp,
-                        "sender": "self" if is_own_message else "other",
-                        "message": line,
-                    }
-                )
-
-                with open(history_file, "w", encoding="utf-8") as f:
-                    json.dump(history, f, indent=2)
-            except Exception as e:
-                logger.error(f"Error saving to chat history: {e}")
-
-        # Parse the original message content for player messages
-        original_message = None
-        if not is_own_message:
-            # Only accept full format: [username] char name: [mode] msg
-            match = re.match(r"^\[([^\]]+)\] ([^:]+): \[([^\]]+)\] (.*)$", line)
-            if match:
-                account, char_name, mode, player_message = match.groups()
-                if mode == "Talk":
-                    original_message = player_message
-
-        # Only display accepted conversation format: [username] char name: [Talk] msg
-        talk_match = re.match(r"^\[([^\]]+)\] ([^:]+): \[([^\]]+)\] (.*)$", line)
-        if not talk_match:
-            # Not a standard chat line; skip without aborting the batch.
-            logger.info(f"Skipping non-chat line: {line[:120]}")
-            continue
-        account, speaker, mode, text = talk_match.groups()
-        if mode != "Talk":
-            # Only show Talk lines, but keep processing other lines in this batch.
-            logger.info(f"Skipping non-Talk line: {line[:120]}")
-            continue
-        formatted_message = f"<strong>{speaker}:</strong> {text}"
-
-        # Emit the new_message event to all clients
-        logger.info(f"Broadcasting message to all clients")
-        socketio.emit(
-            "new_message",
-            {
-                "character": character_name,
-                "message": formatted_message,
-                "raw_message": line,
-                "is_own": is_own_message,
-                "original_message": original_message,
-                "client": client,
-            },
-        )
-
-        # Process NPC/player messages for auto-reply
-        if not is_own_message:
-            # Only accept full format: [username] char name: [mode] msg
-            match = re.match(r"^\[([^\]]+)\] ([^:]+): \[([^\]]+)\] (.*)$", line)
-            if match:
-                account, char_name, mode, player_message = match.groups()
-                if mode == "Talk":
-                    logger.info(
-                        f"Broadcasting player message from {char_name} to all clients"
-                    )
-                    socketio.emit(
-                        "player_message",
-                        {
-                            "character": character_name,
-                            "player_name": char_name,
-                            "message": player_message,
-                            "client": client,
-                        },
-                    )
-
-
-# Generate AI responses
-def generate_in_character_reply(
-    character_name, player_message, num_alternatives=3, context=None
-):
-    """Generate AI responses for a character"""
-    if not character_name or character_name not in character_profiles:
-        return []
-
-    persona = character_profiles[character_name]
-
-    # Set character-specific parameters
-    temperature = persona.get(
-        "temperature", 0.7
-    )  # Get temperature from profile or use 0.7 as default
-
-    # Note: Special case handling for Elvith is maintained but temperature modifier is reduced
-    # as the user can now directly control temperature via the UI
-    creativity_instruction = ""
-
-    # Check if this is Elvith - if so, reduce creativity/poetry
-    if "Elvith" in character_name:
-        # Apply a small reduction to the user-defined temperature
-        temperature = max(0.1, temperature * 0.9)  # Reduce by 10% but not below 0.1
-        creativity_instruction = (
-            f"\nIMPORTANT NOTE FOR ELVITH MA'FOR: Reduce poetic and flowery language by 30%. "
-            f"Be more direct and straightforward in conversations. "
-            f"Focus on clear communication rather than excessive metaphors or philosophical tangents. "
-            f"While still maintaining your elegant and aristocratic tone, prioritize following the "
-            f"conversation directly rather than being overly poetic or abstract."
-        )
-
-    system_prompt = (
-        f"You are roleplaying as the following character in Neverwinter Nights EE. "
-        f"Stay strictly in character, using the persona, background, and style below.\n\n"
-        f"Persona: {persona.get('persona', '')}\n"
-        f"Background: {persona.get('background', '')}\n"
-        f"Appearance: {persona.get('appearance', '')}\n"
-        f"Traits: {', '.join(persona.get('traits', []))}\n"
-        f"Roleplay Prompt: {persona.get('roleplay_prompt', '')}\n"
-        f"Interaction Constraints: {', '.join(persona.get('interaction_constraints', []))}\n"
-        f"Mannerisms: {', '.join(persona.get('mannerisms', []))}\n"
-        f"Example Dialogue: {persona.get('dialogue_examples', [])}\n"
-        f"{creativity_instruction}\n"
-        f"\nNever break character. Respond to the following as your character would.\n"
-        f"\nImportant formatting notes: Never use em dashes (—) in your responses. Use regular hyphens (-) or just avoid them entirely.\n"
-        f"\nGenerate three distinct, varied in-character replies to the player message."
-        f"\nEach reply must be a single line (no line breaks)."
-        f"\nDo not label them as positive/neutral/negative or by length."
-        f"\nLabel each reply as '1.', '2.', and '3.' respectively."
-    )
-
-    # Build messages array with context if available
-    messages = [{"role": "system", "content": system_prompt}]
-
-    # Add conversation context if available
-    if context and context.get("messages") and len(context.get("messages", [])) > 0:
-        # Log context being used
-        logger.info(f"Using context with {len(context.get('messages', []))} messages")
-
-        # Add context messages to conversation history
-        for msg in context.get("messages", []):
-            if msg.get("speaker") and msg.get("text"):
-                role = "assistant" if msg.get("speaker") == character_name else "user"
-                messages.append(
-                    {
-                        "role": role,
-                        "content": f"{msg.get('speaker')}: {msg.get('text')}",
-                    }
-                )
-
-        # Add a separator after context
-        messages.append(
-            {
-                "role": "system",
-                "content": "The above messages provide context for the conversation. Now respond to the following message:",
-            }
-        )
-
-    # Add the current message
-    messages.append(
-        {"role": "user", "content": f"Player says: {player_message}\nYour replies:"}
-    )
-
-    try:
-        openai.api_key = get_openai_api_key()
-        response = openai.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            max_tokens=400,
-            temperature=temperature,
-            n=1,
-        )
-
-        # Parse the single response into three options
-        content = response.choices[0].message.content.strip()
-        # Remove any em dashes in the response
-        content = content.replace("—", "-")
-
-        # Split by '1.', '2.', '3.'
-        import re
-
-        matches = re.split(r"\n?\s*\d\.\s*", content)
-        # The first split part is before '1.', so ignore it
-        options = [m.strip() for m in matches[1:4] if m.strip()]
-        options = [re.sub(r"\s*\n\s*", " ", opt).strip() for opt in options]
-
-        # Record AI responses in history
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        for idx, reply in enumerate(options, 1):
-            save_to_history(
-                character_name, f"[AI Option {idx}] {reply}", "ai", timestamp
-            )
-
-        return options
-    except Exception as e:
-        logger.error(f"Error generating AI response: {e}")
-        return []
-
-
-def translate_custom_message(character_name, portuguese_text):
-    """Translate a custom Portuguese message to English using the character's persona"""
-    if not character_name or character_name not in character_profiles:
-        return {"error": "Character not found"}
-
-    persona = character_profiles[character_name]
-
-    # Set character-specific parameters
-    temperature = persona.get(
-        "temperature", 0.7
-    )  # Get temperature from profile or use 0.7 as default
-    creativity_instruction = ""
-
-    # Check if this is Elvith - if so, reduce creativity/poetry
-    if "Elvith" in character_name:
-        # Apply a small reduction to the user-defined temperature
-        temperature = max(0.1, temperature * 0.9)  # Reduce by 10% but not below 0.1
-        creativity_instruction = (
-            f"\nIMPORTANT NOTE FOR ELVITH MA'FOR: Reduce poetic and flowery language by 30%. "
-            f"Be more direct and straightforward in translations. "
-            f"Focus on clear communication rather than excessive metaphors or philosophical tangents. "
-            f"While still maintaining your elegant and aristocratic tone, prioritize direct communication "
-            f"rather than being overly poetic or abstract."
-        )
-
-    system_prompt = (
-        f"You are roleplaying as the following character in Neverwinter Nights EE. "
-        f"Use the persona, background and style below to speak as that character, but prioritize an accurate, concise translation of the meaning.\n\n"
-        f"Persona: {persona.get('persona', '')}\n"
-        f"Background: {persona.get('background', '')}\n"
-        f"Appearance: {persona.get('appearance', '')}\n"
-        f"Traits: {', '.join(persona.get('traits', []))}\n"
-        f"Roleplay Prompt: {persona.get('roleplay_prompt', '')}\n"
-        f"Interaction Constraints: {', '.join(persona.get('interaction_constraints', []))}\n"
-        f"Mannerisms: {', '.join(persona.get('mannerisms', []))}\n"
-        f"Example Dialogue: {persona.get('dialogue_examples', [])}\n"
-        f"{creativity_instruction}\n"
-        f"\nYou will receive a short message in Portuguese. Your task: produce a faithful, concise English rendering of the message as this character would say it — preserve the original meaning and intent, but express it in the character's voice. Keep the result brief and focused (one to three short sentences).\n"
-        f"Include ONE physical action (enclosed in asterisks, e.g. *smiles*) and the spoken line in quotes.\n"
-        f'Return your answer as JSON with two fields: \'action\' (a short action string, without surrounding whitespace) and \'speech\' (the translated English speech). Example: {{"action":"*nods*","speech":"I understand, we will proceed."}}\n'
-        f"Do NOT include extra commentary outside the JSON object. Never use em dashes (—); use hyphens (-) if needed."
-    )
-    user_prompt = f'I want to roleplay as your character and say something in Portuguese. Please understand what I mean and express it as your character would: "{portuguese_text}"\n\nRespond with an appropriate character action and speech that conveys this meaning.'
-
-    try:
-        openai.api_key = get_openai_api_key()
-        response = openai.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            max_tokens=250,
-            temperature=temperature,
-            n=1,
-        )
-
-        # Get the translated message
-        translated = response.choices[0].message.content.strip()
-        # Remove any em dashes in the response
-        translated = translated.replace("—", "-")
-
-        # Try to parse JSON output from the model (preferred)
-        parsed = None
-        try:
-            parsed = json.loads(translated)
-        except Exception:
-            parsed = None
-
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        if isinstance(parsed, dict) and ("action" in parsed or "speech" in parsed):
-            action = parsed.get("action", "").strip()
-            speech = parsed.get("speech", "").strip()
-            # Normalize action (ensure it's wrapped in asterisks)
-            if action and not (action.startswith("*") and action.endswith("*")):
-                action = f"*{action.strip('*').strip()}*"
-
-            # Record the structured translation in history
-            save_to_history(
-                character_name,
-                f'Custom message interpretation - Original: "{portuguese_text}" → Action: {action} Speech: {speech}',
-                "system",
-                timestamp,
-            )
-
-            return {
-                "original": portuguese_text,
-                "action": action,
-                "speech": speech,
-                "character": character_name,
-            }
-        else:
-            # Fallback: try to extract speech from quoted text and action from asterisks or surrounding text
-            speech = ""
-            action = ""
-
-            # Try to find the first quoted substring (double or single quotes)
-            quote_match = re.search(r'["\'](.*?)["\']', translated)
-            if quote_match:
-                speech = quote_match.group(1).strip()
-
-            # Try to find an action enclosed in asterisks
-            action_match = re.search(r"\*(.*?)\*", translated)
-            if action_match:
-                action = f"*{action_match.group(1).strip()}*"
-            else:
-                # If no asterisk action, derive action from the non-quoted part
-                non_quoted = re.sub(r'["\'].*?["\']', "", translated).strip()
-                # Remove any trailing punctuation
-                non_quoted = re.sub(r"^[\:\-\s]+|[\:\-\s]+$", "", non_quoted)
-                if non_quoted:
-                    # Use the first sentence or phrase as an action
-                    first_sentence = re.split(r"[\.\!\?]\s+", non_quoted)[0].strip()
-                    if first_sentence:
-                        # Wrap in asterisks
-                        action = f"*{first_sentence}*"
-
-            # If we found both action and speech, record as structured translation
-            if speech or action:
-                save_to_history(
-                    character_name,
-                    f'Custom message interpretation - Original: "{portuguese_text}" → Action: {action} Speech: {speech}',
-                    "system",
-                    timestamp,
-                )
-
-                return {
-                    "original": portuguese_text,
-                    "action": action,
-                    "speech": speech,
-                    "character": character_name,
-                }
-
-            # Otherwise, store the raw translated text and return it
-            save_to_history(
-                character_name,
-                f'Custom message interpretation - Original: "{portuguese_text}" → As character: "{translated}"',
-                "system",
-                timestamp,
-            )
-
-            return {
-                "original": portuguese_text,
-                "translated": translated,
-                "character": character_name,
-            }
-    except Exception as e:
-        logger.error(f"Error translating message: {e}")
-        return {"error": str(e)}
-
-
-# Helper function to clean em dashes from any text
-def remove_em_dashes(text):
-    """Replace em dashes with hyphens in text"""
-    if text:
-        return text.replace("—", "-")
-    return text
 
 
 @app.route("/api/translate", methods=["POST"])
@@ -739,39 +175,17 @@ def translate_message():
     if not portuguese_text:
         return jsonify({"error": "No text provided"}), 400
 
-    result = translate_custom_message(character_name, portuguese_text)
+    result = chat_processing.translate_custom_message(
+        character_name,
+        portuguese_text,
+        character_profiles=character_profiles,
+        get_openai_api_key=get_openai_api_key,
+        save_to_history_func=lambda *args, **kwargs: chat_processing.save_to_history(
+            *args, **kwargs, logger=logger
+        ),
+        logger=logger,
+    )
     return jsonify(result)
-
-
-@socketio.on("translate_message")
-def handle_translate_message(data):
-    """WebSocket endpoint to translate a message"""
-    character_name = data.get("character", active_character)
-    portuguese_text = data.get("text", "")
-
-    if not character_name or not portuguese_text:
-        emit("translation_result", {"error": "Missing character or text"})
-        return
-
-    result = translate_custom_message(character_name, portuguese_text)
-
-    # Make sure translated text doesn't have em dashes
-    if "translated" in result:
-        result["translated"] = remove_em_dashes(result["translated"])
-
-    emit("translation_result", result)
-
-
-# Flask routes
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if "user" not in session:
-            flash("Please log in to access this page", "error")
-            return redirect(url_for("login"))
-        return f(*args, **kwargs)
-
-    return decorated_function
 
 
 @app.route("/")
@@ -880,7 +294,7 @@ def set_active_character(n):
     session["active_character"] = n
     logger.info(f"Manually activated character: {n}")
 
-    setup_chat_history(n)
+    chat_processing.setup_chat_history(n, logger=logger)
     socketio.emit("character_change", {"character": n})
     return jsonify({"success": True, "active_character": n})
 
@@ -946,135 +360,6 @@ def upload_character_json():
 
 
 # Socket.IO events
-@socketio.on("connect")
-def connect(auth):
-    """Handle client connection with more reliable approach"""
-    try:
-        # Get client IP for logging
-        client_ip = request.remote_addr
-        logger.info(f"Client connecting from IP: {client_ip}")
-
-        # Store connection info in a more reliable way
-        # Use socket ID as identifier instead of session
-        socket_id = request.sid
-
-        # Create a default room based on the client's IP or socket ID
-        # This avoids relying on Flask sessions
-        room_name = f"room_{socket_id}"
-        join_room(room_name)
-        logger.info(f"Client {socket_id} joined room {room_name}")
-
-        # Check if user credentials are provided in auth param
-        username = None
-        if auth and isinstance(auth, dict) and "username" in auth:
-            username = auth["username"]
-            logger.info(f"User identified as: {username}")
-            if username:
-                online_users.add(username)
-                socketio.emit("active_users", list(online_users))
-
-        # Always emit connection status to this specific client
-        emit(
-            "connection_status",
-            {
-                "status": "connected",
-                "client_ip": client_ip,
-                "socket_id": socket_id,
-                "username": username,
-            },
-        )
-
-        # If there's session data, try to use it as fallback
-        # But don't rely on it for core functionality
-        try:
-            if "user" in session and session.get("active_character"):
-                emit("character_change", {"character": session.get("active_character")})
-        except Exception as e:
-            logger.warning(f"Session access failed (non-critical): {e}")
-
-        return True  # Return True to approve the connection
-    except Exception as e:
-        logger.error(f"Error in connection handler: {e}")
-        # Still approve the connection even if there was an error
-        return True
-
-
-@socketio.on("disconnect")
-def disconnect():
-    """Handle client disconnection"""
-    if "user" in session:
-        online_users.discard(session["user"])
-        socketio.emit("active_users", list(online_users))
-
-
-# Add new socketio endpoint for activating a character
-@socketio.on("activate_character")
-def handle_activate_character(data):
-    """Set active character through websocket"""
-    character_name = data.get("character")
-    if not character_name:
-        emit("activation_result", {"error": "No character specified"})
-        return
-    if character_name not in character_profiles:
-        emit("activation_result", {"error": "Character not found"})
-        return
-    session["active_character"] = character_name
-    logger.info(f"Manually activated character via websocket: {character_name}")
-    setup_chat_history(character_name)
-    emit("character_change", {"character": character_name})
-    emit("activation_result", {"success": True, "active_character": character_name})
-
-
-@socketio.on("request_ai_reply")
-def handle_ai_reply_request(data):
-    """Generate AI reply for a character"""
-    character_name = data.get("character", session.get("active_character"))
-    player_message = data.get("message", "")
-    player_name = data.get("player_name", "Unknown")
-    context = data.get("context", None)
-
-    if not character_name or not player_message:
-        emit("ai_reply", {"error": "Missing character or message"})
-        return
-
-    # Log the request
-    logger.info(
-        f"Generating AI reply for '{character_name}' responding to '{player_name}': '{player_message}'"
-    )
-    if context and context.get("messages"):
-        logger.info(
-            f"Using context window with {len(context.get('messages', []))} messages"
-        )
-
-    # Generate responses with context if available
-    responses = generate_in_character_reply(
-        character_name, player_message, context=context
-    )
-
-    # Make sure responses don't have em dashes
-    responses = [remove_em_dashes(response) for response in responses]
-
-    # Save this interaction to history
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    save_to_history(
-        character_name,
-        f"Request to respond to {player_name}: {player_message}",
-        "system",
-        timestamp,
-    )
-
-    emit(
-        "ai_reply",
-        {
-            "character": character_name,
-            "responses": responses,
-            "original_message": player_message,
-            "player_name": player_name,
-        },
-    )
-
-
-# Add route for manual message response
 @app.route("/api/respond", methods=["POST"])
 def manual_respond():
     """Manually generate a response to a specific message"""
@@ -1088,17 +373,26 @@ def manual_respond():
         return jsonify({"error": "Missing character or message"}), 400
 
     # Generate response with context if available
-    responses = generate_in_character_reply(
-        character_name, player_message, context=context
+    responses = chat_processing.generate_in_character_reply(
+        character_name,
+        player_message,
+        context=context,
+        character_profiles=character_profiles,
+        get_openai_api_key=get_openai_api_key,
+        save_to_history_func=lambda *args, **kwargs: chat_processing.save_to_history(
+            *args, **kwargs, logger=logger
+        ),
+        logger=logger,
     )
 
     # Save to history
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    save_to_history(
+    chat_processing.save_to_history(
         character_name,
         f"Manual request to respond to {player_name}: {player_message}",
         "system",
         timestamp,
+        logger=logger,
     )
 
     return jsonify(
@@ -1121,7 +415,10 @@ def start_monitor():
 
     # Start the monitor thread
     running = True
-    chat_monitor_thread = threading.Thread(target=monitor_chat)
+    chat_monitor_thread = threading.Thread(
+        target=chat_processing.monitor_chat,
+        kwargs={"is_running": lambda: running, "logger": logger},
+    )
     chat_monitor_thread.daemon = True
     chat_monitor_thread.start()
 
@@ -1240,6 +537,18 @@ def get_character_feedback_summary(character_name):
         return {"error": str(e)}
 
 
+register_socketio_handlers(
+    socketio,
+    logger=logger,
+    get_character_profiles=lambda: character_profiles,
+    online_users=online_users,
+    chat_processing=chat_processing,
+    get_openai_api_key=get_openai_api_key,
+    save_feedback=save_feedback,
+    last_log_update=LAST_LOG_UPDATE,
+)
+
+
 @app.route("/api/feedback/<character>", methods=["POST"])
 def submit_feedback(character):
     """Submit feedback for a character response"""
@@ -1258,72 +567,6 @@ def get_feedback(character):
     """Get feedback summary for a character"""
     summary = get_character_feedback_summary(character)
     return jsonify(summary)
-
-
-@socketio.on("submit_feedback")
-def handle_feedback(data):
-    """Handle feedback submission through websocket"""
-    character = data.get("character", session.get("active_character"))
-    rating = data.get("rating", 0)
-    response = data.get("response", "")
-    message_data = data.get("message_data", {})
-    notes = data.get("notes", "")
-
-    result = save_feedback(character, message_data, response, rating, notes)
-    emit("feedback_result", result)
-
-
-@socketio.on("log_update")
-def handle_log_update_socket(data):
-    """Receive log updates over Socket.IO from NWN Log Client."""
-    try:
-        logger.info("Received log_update via Socket.IO: %s", data)
-        if not isinstance(data, dict):
-            logger.warning("log_update payload is not a dict: %s", type(data))
-            return
-
-        client = (
-            data.get("client")
-            or data.get("client_name")
-            or data.get("username")
-            or "default"
-        )
-        lines = data.get("lines")
-        if lines is None:
-            logger.warning("log_update payload missing 'lines'")
-            return
-
-        if isinstance(lines, str):
-            lines_list = lines.splitlines()
-        elif isinstance(lines, list):
-            lines_list = lines
-        else:
-            logger.warning("log_update 'lines' has unexpected type: %s", type(lines))
-            return
-
-        if lines_list:
-            logger.info(
-                "log_update (socket) lines preview (up to 5): %s", lines_list[:5]
-            )
-            LAST_LOG_UPDATE.update(
-                {
-                    "timestamp": datetime.datetime.now().isoformat(),
-                    "source": "socketio",
-                    "client": client,
-                    "lines_preview": lines_list[:5],
-                }
-            )
-            log_text = "\n".join(lines_list)
-            user_characters = {
-                name: profile
-                for name, profile in character_profiles.items()
-                if profile.get("owner") == client
-            }
-            process_new_messages(
-                log_text, client=client, user_characters=user_characters
-            )
-    except Exception as e:
-        logger.error("Error processing Socket.IO log_update: %s", e)
 
 
 @app.route("/api/log_update", methods=["POST"])
@@ -1371,8 +614,13 @@ def log_update():
             }
 
             # Process messages with global broadcast
-            process_new_messages(
-                log_text, client=client, user_characters=user_characters
+            chat_processing.process_new_messages(
+                log_text,
+                client=client,
+                user_characters=user_characters,
+                character_profiles=character_profiles,
+                socketio=socketio,
+                logger=logger,
             )
 
         return jsonify(success=True), 200
@@ -1631,16 +879,6 @@ def health_check():
 @app.route("/socket_health")
 def socket_health_check():
     """Socket.IO specific health check that doesn't require authentication"""
-    # Create a simple ping event handler if it doesn't exist
-    try:
-
-        @socketio.on("socket_ping")
-        def handle_socket_ping():
-            emit("socket_pong", {"time": datetime.datetime.now().isoformat()})
-
-    except Exception as e:
-        logger.error(f"Error setting up socket_ping handler: {e}")
-
     # Get basic info that should be available, or provide defaults
     async_mode = getattr(socketio, "async_mode", "eventlet")
 
@@ -1678,19 +916,19 @@ def debug_send_message():
         user_characters = {character: {"owner": client}}
 
         # Process the message
-        process_new_messages(test_line, client=client, user_characters=user_characters)
+        chat_processing.process_new_messages(
+            test_line,
+            client=client,
+            user_characters=user_characters,
+            character_profiles=character_profiles,
+            socketio=socketio,
+            logger=logger,
+        )
 
         return jsonify({"success": True, "message": "Test message sent"}), 200
     except Exception as e:
         logger.error(f"Error sending test message: {e}")
         return jsonify({"error": str(e)}), 500
-
-
-# Ping handler for testing WebSocket connection
-@socketio.on("ping")
-def handle_ping(data=None):
-    """Handle ping event for testing connection latency"""
-    emit("pong", {"time": datetime.datetime.now().isoformat()})
 
 
 # Simple Socket.IO test page (no auth required)
