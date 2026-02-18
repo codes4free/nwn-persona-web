@@ -1,0 +1,32 @@
+nwn-persona-web installation resume (Jan 31, 2026)
+
+Repo
+- Location: /home/d6lab/nwn-persona-web
+- Source: https://github.com/codes4free/nwn-persona-web
+
+Environment
+- Python venv: /home/d6lab/nwn-persona-web/.venv
+- Install command: source .venv/bin/activate && pip install -r requirements.txt
+- Network access was required to download dependencies from PyPI.
+
+Notes from install
+- Initial pip install failed without network; reran with network and it succeeded.
+- run_app.sh re-installs deps and fails when network is unavailable.
+- Flask-SocketIO was missing after a partial install; reran pip install to complete it.
+
+Run / Restart
+- Foreground (for debugging):
+  source .venv/bin/activate && python app.py
+- Background (recommended):
+  nohup bash -lc 'source .venv/bin/activate && python app.py' > nohup.out 2>&1 &
+
+Access (from another computer on same network)
+- https://192.168.1.37:5000/
+- IPv6 (if needed): https://[2804:3d28:45:f754:be24:11ff:fe78:be3f]:5000/
+
+Logs
+- /home/d6lab/nwn-persona-web/nohup.out
+
+Troubleshooting
+- If app fails to bind a socket under sandbox, run with escalated permissions.
+- Eventlet deprecation warnings are expected; app still runs.

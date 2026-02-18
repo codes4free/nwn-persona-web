@@ -117,6 +117,50 @@
             
             <!-- Main Content -->
             <div class="col-md-9 main-content">
+                <!-- Custom Message Translation -->
+                <div id="custom-message" class="custom-message p-3">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Character Expression</h3>
+                            <small class="text-muted">Write your intent in any language and see how your character would express it</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                               
+                                <textarea id="portuguese-text" class="form-control" rows="3" placeholder="Write your message in any language here..."></textarea>
+                                <!-- Help text removed per user request -->
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+                                <button id="translate-button" class="btn btn-success">Express as Character</button>
+                                <button id="voice-input" class="btn btn-outline-secondary" type="button" aria-pressed="false">
+                                    <i class="bi bi-mic-fill me-1"></i> Voice to Text
+                                </button>
+                                <div class="input-group input-group-sm w-auto">
+                                    <label class="input-group-text" for="voice-lang">Voice</label>
+                                    <select id="voice-lang" class="form-select">
+                                        <option value="pt-BR" selected>pt-BR</option>
+                                        <option value="en-US">en-US</option>
+                                    </select>
+                                </div>
+                                <span id="voice-status" class="text-muted align-self-center"></span>
+                            </div>
+                            
+                            <div id="translation-result" class="translation-result mt-3">
+                                <div class="alert alert-info">
+                                    <h5>Character Expression:</h5>
+                                    <p id="translated-action" class="text-muted fst-italic mb-1"></p>
+                                    <p id="translated-text" class="mb-2"></p>
+                                    <div class="form-check form-check-inline mb-2">
+                                        <input class="form-check-input" type="checkbox" id="include-action" checked>
+                                        <label class="form-check-label" for="include-action">Include action</label>
+                                    </div>
+                                    <button id="copy-translation" class="btn btn-sm btn-primary me-2" disabled>Copy to Clipboard</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Chat Display -->
                 <div id="chat-display" class="chat-display p-3">
                     <div class="card">
@@ -155,33 +199,6 @@
                         <div class="card-body">
                             <p id="incoming-message" class="incoming-message text-muted">No messages selected yet</p>
                             <button id="generate-response" class="btn btn-primary" disabled>Generate Response</button>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Custom Message Translation -->
-                <div id="custom-message" class="custom-message p-3">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Character Expression</h3>
-                            <small class="text-muted">Write your intent in any language and see how your character would express it</small>
-                        </div>
-                        <div class="card-body">
-                            <div class="mb-3">
-                               
-                                <textarea id="portuguese-text" class="form-control" rows="3" placeholder="Write your message in any language here..."></textarea>
-                                <!-- Help text removed per user request -->
-                            </div>
-                            <button id="translate-button" class="btn btn-success mb-3">Express as Character</button>
-                            
-                            <div id="translation-result" class="translation-result mt-3">
-                                <div class="alert alert-info">
-                                    <h5>Character Expression:</h5>
-                                    <p id="translated-action" class="text-muted fst-italic mb-1"></p>
-                                    <p id="translated-text" class="mb-2"></p>
-                                    <button id="copy-translation" class="btn btn-sm btn-primary me-2" disabled>Copy to Clipboard</button>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>

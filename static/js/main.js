@@ -21,10 +21,14 @@ const generateResponseButton = document.getElementById('generate-response');
 const notificationToast = document.getElementById('notification-toast');
 const portugueseTextElement = document.getElementById('portuguese-text');
 const translateButton = document.getElementById('translate-button');
+const voiceInputButton = document.getElementById('voice-input');
+const voiceStatusElement = document.getElementById('voice-status');
+const voiceLangSelect = document.getElementById('voice-lang');
 const translationResultElement = document.getElementById('translation-result');
 const translatedTextElement = document.getElementById('translated-text');
 const translatedActionElement = document.getElementById('translated-action');
 const copyTranslationButton = document.getElementById('copy-translation');
+const includeActionCheckbox = document.getElementById('include-action');
 const feedbackSummaryElement = document.getElementById('feedback-summary');
 const feedbackProgressElement = document.getElementById('feedback-progress');
 const positiveCountElement = document.getElementById('positive-count');
@@ -43,6 +47,9 @@ let availableCharacters = [];
 let currentMessageData = null;  // Store the current message data for feedback
 let userChatHistories = {};     // Store chat histories by user
 let currentUser = '';           // Current user from session
+let speechRecognition = null;
+let isListening = false;
+let voiceBaseText = '';
 
 // Maximum number of messages to keep in chat history
 const MAX_CHAT_HISTORY = 20;
@@ -50,6 +57,104 @@ const MAX_CHAT_HISTORY = 20;
 // Helper function to clean em dashes
 function cleanEmDashes(text) {
     return text ? text.replace(/—/g, '-') : text;
+}
+
+function updateVoiceUi() {
+    if (!voiceInputButton) {
+        return;
+    }
+    if (isListening) {
+        voiceInputButton.classList.remove('btn-outline-secondary');
+        voiceInputButton.classList.add('btn-danger');
+        voiceInputButton.setAttribute('aria-pressed', 'true');
+        voiceInputButton.innerHTML = '<i class="bi bi-mic-fill me-1"></i> Stop Recording';
+        if (voiceStatusElement) {
+            voiceStatusElement.textContent = 'Listening...';
+        }
+    } else {
+        voiceInputButton.classList.remove('btn-danger');
+        voiceInputButton.classList.add('btn-outline-secondary');
+        voiceInputButton.setAttribute('aria-pressed', 'false');
+        voiceInputButton.innerHTML = '<i class="bi bi-mic-fill me-1"></i> Voice to Text';
+        if (voiceStatusElement) {
+            voiceStatusElement.textContent = '';
+        }
+    }
+}
+
+function setupVoiceInput() {
+    if (!voiceInputButton || !portugueseTextElement) {
+        return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        voiceInputButton.disabled = true;
+        if (voiceStatusElement) {
+            voiceStatusElement.textContent = 'Voice input not supported in this browser.';
+        }
+        return;
+    }
+
+    speechRecognition = new SpeechRecognition();
+    speechRecognition.lang = voiceLangSelect && voiceLangSelect.value ? voiceLangSelect.value : 'pt-BR';
+    speechRecognition.interimResults = true;
+    speechRecognition.continuous = false;
+
+    speechRecognition.onstart = () => {
+        isListening = true;
+        voiceBaseText = portugueseTextElement.value.trim();
+        if (voiceBaseText) {
+            voiceBaseText += ' ';
+        }
+        updateVoiceUi();
+    };
+
+    speechRecognition.onerror = (event) => {
+        console.warn('Speech recognition error:', event.error);
+        isListening = false;
+        updateVoiceUi();
+        if (voiceStatusElement) {
+            voiceStatusElement.textContent = 'Voice input error. Try again.';
+        }
+    };
+
+    speechRecognition.onend = () => {
+        isListening = false;
+        updateVoiceUi();
+    };
+
+    speechRecognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = 0; i < event.results.length; i++) {
+            transcript += event.results[i][0].transcript;
+        }
+        portugueseTextElement.value = `${voiceBaseText}${transcript}`.trim();
+    };
+
+    voiceInputButton.addEventListener('click', () => {
+        if (isListening) {
+            speechRecognition.stop();
+        } else {
+            if (voiceStatusElement) {
+                voiceStatusElement.textContent = '';
+            }
+            portugueseTextElement.value = '';
+            speechRecognition.start();
+        }
+    });
+
+    if (voiceLangSelect) {
+        voiceLangSelect.addEventListener('change', () => {
+            const nextLang = voiceLangSelect.value || 'pt-BR';
+            speechRecognition.lang = nextLang;
+            if (isListening) {
+                speechRecognition.stop();
+                setTimeout(() => {
+                    speechRecognition.start();
+                }, 150);
+            }
+        });
+    }
 }
 
 // Connect to WebSocket
@@ -80,6 +185,9 @@ socket.on('connect', () => {
     
     // Request initial data
     fetchCharacters();
+
+    // Initialize voice input after connection
+    setupVoiceInput();
 });
 
 socket.on('disconnect', () => {
@@ -322,7 +430,14 @@ socket.on('translation_result', (data) => {
         action = `*${action.replace(/^\*|\*$/g, '')}*`;
     }
 
-    if (translatedActionElement) translatedActionElement.textContent = action;
+    if (translatedActionElement) {
+        translatedActionElement.textContent = action;
+        if (includeActionCheckbox && !includeActionCheckbox.checked) {
+            translatedActionElement.style.display = 'none';
+        } else {
+            translatedActionElement.style.display = '';
+        }
+    }
     if (translatedTextElement) {
         // Wrap speech in double quotes for display if not already quoted
         let displaySpeech = speech || '';
@@ -467,12 +582,24 @@ translateButton.addEventListener('click', () => {
         character: activeCharacter,
         text: portugueseText
     });
+
+    portugueseTextElement.value = '';
 });
+
+if (includeActionCheckbox) {
+    includeActionCheckbox.addEventListener('change', () => {
+        if (!translatedActionElement) {
+            return;
+        }
+        translatedActionElement.style.display = includeActionCheckbox.checked ? '' : 'none';
+    });
+}
 
 // Copy translation button handler
 if (copyTranslationButton) {
     copyTranslationButton.addEventListener('click', () => {
-        const action = translatedActionElement ? translatedActionElement.innerText : '';
+        const includeAction = !includeActionCheckbox || includeActionCheckbox.checked;
+        const action = includeAction && translatedActionElement ? translatedActionElement.innerText : '';
         const speech = translatedTextElement ? translatedTextElement.innerText : '';
         const combined = (action ? `${action} ` : '') + speech;
 
@@ -829,7 +956,6 @@ function displayResponseOptions(responses) {
     const optionsContainer = document.createElement('div');
     optionsContainer.className = 'response-options-container';
     
-    const optionLabels = ['Positive', 'Neutral', 'Negative'];
     responses.forEach((response, index) => {
         // Clean any em dashes from responses
         const cleanedResponse = cleanEmDashes(response);
@@ -840,7 +966,6 @@ function displayResponseOptions(responses) {
             <div class="response-text">${cleanedResponse}</div>
             <div class="response-controls">
                 <div class="d-flex">
-                    <span class="badge bg-secondary me-2">${optionLabels[index] || `Option ${index + 1}`}</span>
                     <button class="btn btn-sm btn-outline-success me-1 btn-feedback" data-rating="1" data-index="${index}" title="This response is good"><i class="bi bi-hand-thumbs-up"></i></button>
                     <button class="btn btn-sm btn-outline-danger btn-feedback" data-rating="0" data-index="${index}" title="This response needs improvement"><i class="bi bi-hand-thumbs-down"></i></button>
                 </div>

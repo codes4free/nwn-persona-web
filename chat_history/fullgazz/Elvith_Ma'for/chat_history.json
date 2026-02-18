@@ -2193,5 +2193,125 @@
     "timestamp": "2025-05-25 17:37:46",
     "sender": "system",
     "message": "Request to respond to Prosperity: I'm not sure I ever aught all of your names, actually, which is quite peculiar seeing how much excitement we saw together."
+  },
+  {
+    "timestamp": "2026-02-14 02:22:43",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"nao acho isso certo\" \u2192 Action: *arches an eyebrow* Speech: I find that quite unjust."
+  },
+  {
+    "timestamp": "2026-02-14 02:30:15",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"entao fico esperando\" \u2192 Action: *nods thoughtfully* Speech: Then I shall await your arrival."
+  },
+  {
+    "timestamp": "2026-02-14 02:45:03",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"vamos ver como voc\u00ea vai se sair nessa\" \u2192 Action: *arches an eyebrow* Speech: Let us see how you shall fare in this endeavor."
+  },
+  {
+    "timestamp": "2026-02-14 02:56:25",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Ol\u00e1 senhorita como posso ajud\u00e1-lo essa noite\" \u2192 Action: *inclines head gracefully* Speech: Good evening, my lady. How may I assist you this night?"
+  },
+  {
+    "timestamp": "2026-02-14 02:59:03",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"hello my friend Perfect well\" \u2192 Action: *smiles knowingly* Speech: Greetings, my esteemed friend. All is as it should be."
+  },
+  {
+    "timestamp": "2026-02-14 03:13:02",
+    "sender": "ai",
+    "message": "[AI Option 1] \"Ah, the toll of ambition can be steep; perhaps we should devise a strategy to reclaim your vitality.\""
+  },
+  {
+    "timestamp": "2026-02-14 03:13:02",
+    "sender": "ai",
+    "message": "[AI Option 2] \"Drained, you say? A most unfortunate fate; let us explore how to restore your strength and fortitude.\""
+  },
+  {
+    "timestamp": "2026-02-14 03:13:02",
+    "sender": "ai",
+    "message": "[AI Option 3] \"Such is the peril of our endeavors; fear not, for I possess knowledge that may aid in your rejuvenation.\""
+  },
+  {
+    "timestamp": "2026-02-14 03:13:02",
+    "sender": "system",
+    "message": "Request to respond to Janson: And sure I got drained"
+  },
+  {
+    "timestamp": "2026-02-14 03:13:19",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Eu acho que isso \u00e9 tudo\" \u2192 Action: *nods thoughtfully* Speech: I believe that is all."
+  },
+  {
+    "timestamp": "2026-02-14 03:16:36",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"muito conveniente vence aparecer logo agora\" \u2192 Action: *arches an eyebrow* Speech: How convenient that you choose to appear at this very moment."
+  },
+  {
+    "timestamp": "2026-02-14 03:23:25",
+    "sender": "ai",
+    "message": "[AI Option 1] \"Ah, a curious utterance; I trust it holds meaning beyond mere syllables.\""
+  },
+  {
+    "timestamp": "2026-02-14 03:23:25",
+    "sender": "ai",
+    "message": "[AI Option 2] \"Your words are as enigmatic as the shadows that cloak this realm; care to elaborate?\""
+  },
+  {
+    "timestamp": "2026-02-14 03:23:25",
+    "sender": "ai",
+    "message": "[AI Option 3] \"In the realm of discourse, brevity can be a double-edged sword; what lies behind your cryptic message?\""
+  },
+  {
+    "timestamp": "2026-02-14 03:23:25",
+    "sender": "system",
+    "message": "Request to respond to Janson: boa"
+  },
+  {
+    "timestamp": "2026-02-16 00:44:46",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Infelizmente n\u00e3o temos carro\u00e7as dispon\u00edveis\" \u2192 Action: *frowns slightly* Speech: Regrettably, we have no carts available."
+  },
+  {
+    "timestamp": "2026-02-16 00:46:04",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Ol\u00e1 casa do encantador meu nome \u00e9 Elvith\" \u2192 Action: *bows gracefully* Speech: \"Greetings, enchanting abode. I am Elvith.\""
+  },
+  {
+    "timestamp": "2026-02-16 00:46:36",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"ola casal encantador, pode me chamar de elvith..\" \u2192 Action: *smiles knowingly* Speech: Greetings, enchanting couple. You may call me Elvith."
+  },
+  {
+    "timestamp": "2026-02-16 00:47:47",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"poeta, andarilho e apreciador das vantagens de uma vida eterna.\" \u2192 Action: *smirks* Speech: A poet, a wanderer, and a connoisseur of the advantages of eternal life."
+  },
+  {
+    "timestamp": "2026-02-16 00:48:42",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"tiveram uma aventura com aqueles fedorentos dos wights?\" \u2192 Action: *arches an eyebrow* Speech: Did you have an adventure with those foul wights?"
+  },
+  {
+    "timestamp": "2026-02-16 00:51:20",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"perfeito.. eu sou elvith .. prazer senhorita.\" \u2192 Action: *bows gracefully* Speech: Perfect... I am Elvith. A pleasure to meet you, my lady."
+  },
+  {
+    "timestamp": "2026-02-16 01:07:06",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"a fonte de luz vai provavelmente me matar.\" \u2192 Action: *raises an eyebrow* Speech: The source of light may indeed prove fatal to me."
+  },
+  {
+    "timestamp": "2026-02-16 01:58:18",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"\u00e9 n\u00e3o foi um desastre total\" \u2192 Action: *raises an eyebrow* Speech: It was not a complete disaster, I assure you."
+  },
+  {
+    "timestamp": "2026-02-16 02:05:46",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"foi um bom plano.. mas eles sao espertos\" \u2192 Action: *arches an eyebrow* Speech: It was a commendable plan, yet they possess a cunning intellect."
   }
 ]

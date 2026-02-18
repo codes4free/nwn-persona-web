@@ -343,5 +343,685 @@
     "timestamp": "2026-01-11 14:01:46",
     "sender": "system",
     "message": "Request to respond to Earenien Ma'fer: \"We'll see who is around. Another front would make the venture safer\""
+  },
+  {
+    "timestamp": "2026-02-11 20:38:15",
+    "sender": "ai",
+    "message": "[AI Option 1] Ready is a state of mind, not a question of time."
+  },
+  {
+    "timestamp": "2026-02-11 20:38:15",
+    "sender": "ai",
+    "message": "[AI Option 2] I am prepared, as the shadows whisper their secrets. Let us move with purpose."
+  },
+  {
+    "timestamp": "2026-02-11 20:38:15",
+    "sender": "ai",
+    "message": "[AI Option 3] The hour is upon us, and the mists have stirred. With each step, we embrace the unknown, ready to face what lies ahead."
+  },
+  {
+    "timestamp": "2026-02-11 20:38:15",
+    "sender": "system",
+    "message": "Request to respond to Lina Taen: \"Are you ready?\""
+  },
+  {
+    "timestamp": "2026-02-11 20:39:24",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"nao sei do que voce esta falando\" \u2192 Action: *tilts his head slightly* Speech: I do not grasp your words."
+  },
+  {
+    "timestamp": "2026-02-11 20:47:30",
+    "sender": "ai",
+    "message": "[AI Option 1] Your vigilance is commendable, but I walk my own path."
+  },
+  {
+    "timestamp": "2026-02-11 20:47:30",
+    "sender": "ai",
+    "message": "[AI Option 2] Traditions hold weight, yet wisdom often lies beyond their bounds. I respect your watchfulness."
+  },
+  {
+    "timestamp": "2026-02-11 20:47:30",
+    "sender": "ai",
+    "message": "[AI Option 3] The dance of shadows and light is intricate, my friend. While I honor your traditions, I must also heed the whispers of my own journey."
+  },
+  {
+    "timestamp": "2026-02-11 20:47:30",
+    "sender": "system",
+    "message": "Request to respond to Sithican Guardian: Know that we are forever vigilant, outsider. Obey our traditions or be cast out."
+  },
+  {
+    "timestamp": "2026-02-11 21:10:08",
+    "sender": "ai",
+    "message": "[AI Option 1] Standing in line is a luxury of time I do not possess."
+  },
+  {
+    "timestamp": "2026-02-11 21:10:08",
+    "sender": "ai",
+    "message": "[AI Option 2] Patience is a virtue, yet time is a fleeting companion. I prefer to move with intention rather than wait in silence."
+  },
+  {
+    "timestamp": "2026-02-11 21:10:08",
+    "sender": "ai",
+    "message": "[AI Option 3] Lines are but a reflection of our choices, a dance of the mundane. I seek the path less traveled, where shadows hold their secrets and time bends to the will of the vigilant."
+  },
+  {
+    "timestamp": "2026-02-11 21:10:08",
+    "sender": "system",
+    "message": "Request to respond to Oswald Fenwick: \"You could stand in line?\""
+  },
+  {
+    "timestamp": "2026-02-11 21:10:52",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Olha ao redor incomodado com a multidao.\" \u2192 Action: *glances around thoughtfully* Speech: I observe the crowd, feeling its weight upon me."
+  },
+  {
+    "timestamp": "2026-02-11 22:05:59",
+    "sender": "ai",
+    "message": "[AI Option 1] Then we move on."
+  },
+  {
+    "timestamp": "2026-02-11 22:05:59",
+    "sender": "ai",
+    "message": "[AI Option 2] Action is often more fruitful than hesitation. Let us find a better path."
+  },
+  {
+    "timestamp": "2026-02-11 22:05:59",
+    "sender": "ai",
+    "message": "[AI Option 3] In the shadows, we find purpose. If this is not necessary, let us seek the road that leads us forward."
+  },
+  {
+    "timestamp": "2026-02-11 22:05:59",
+    "sender": "system",
+    "message": "Request to respond to <cw>Sadie Arna</c>: not gonna do this less we gotta"
+  },
+  {
+    "timestamp": "2026-02-11 22:08:48",
+    "sender": "ai",
+    "message": "[AI Option 1] Patience is wise."
+  },
+  {
+    "timestamp": "2026-02-11 22:08:48",
+    "sender": "ai",
+    "message": "[AI Option 2] Observing the mists reveals much. I will remain still for now."
+  },
+  {
+    "timestamp": "2026-02-11 22:08:48",
+    "sender": "ai",
+    "message": "[AI Option 3] The mists conceal both danger and opportunity. I will watch, for the unseen often speaks louder than the restless."
+  },
+  {
+    "timestamp": "2026-02-11 22:08:48",
+    "sender": "system",
+    "message": "Request to respond to <cw>Sadie Arna</c>: watch a bit ye see more come out of the mists, fore ye.....rattle the nest"
+  },
+  {
+    "timestamp": "2026-02-11 22:20:44",
+    "sender": "ai",
+    "message": "[AI Option 1] The mists conceal much."
+  },
+  {
+    "timestamp": "2026-02-11 22:20:44",
+    "sender": "ai",
+    "message": "[AI Option 2] They whisper of lost souls and forgotten paths. We must tread carefully."
+  },
+  {
+    "timestamp": "2026-02-11 22:20:44",
+    "sender": "ai",
+    "message": "[AI Option 3] The mists are a shroud, hiding both danger and truth. In their depths, one must remain vigilant, for clarity often lies just beyond the veil."
+  },
+  {
+    "timestamp": "2026-02-11 22:20:44",
+    "sender": "system",
+    "message": "Request to respond to <cw>Sadie Arna</c>: *watching the mists, gaze empty*"
+  },
+  {
+    "timestamp": "2026-02-14 00:22:56",
+    "sender": "ai",
+    "message": "[AI Option 1] \"I will.\""
+  },
+  {
+    "timestamp": "2026-02-14 00:22:56",
+    "sender": "ai",
+    "message": "[AI Option 2] \"Safety is a fleeting illusion here. I will remain cautious.\""
+  },
+  {
+    "timestamp": "2026-02-14 00:22:56",
+    "sender": "ai",
+    "message": "[AI Option 3] \"In this land of shadows, safety is a rare companion. I will tread carefully, for the mists hold both peril and promise.\""
+  },
+  {
+    "timestamp": "2026-02-14 00:22:56",
+    "sender": "system",
+    "message": "Request to respond to Janosch Meszaros: \"Stay safe Willow.\""
+  },
+  {
+    "timestamp": "2026-02-14 00:39:18",
+    "sender": "ai",
+    "message": "[AI Option 1] \"Thoughtful.\""
+  },
+  {
+    "timestamp": "2026-02-14 00:39:18",
+    "sender": "ai",
+    "message": "[AI Option 2] \"What weighs on your mind?\""
+  },
+  {
+    "timestamp": "2026-02-14 00:39:18",
+    "sender": "ai",
+    "message": "[AI Option 3] \"Silence speaks.\""
+  },
+  {
+    "timestamp": "2026-02-14 00:39:18",
+    "sender": "system",
+    "message": "Request to respond to Gwyneira: \"Hmh.\""
+  },
+  {
+    "timestamp": "2026-02-14 00:40:00",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"ele acorda da meditacao\" \u2192 Action: *nods slightly* Speech: He awakens from meditation."
+  },
+  {
+    "timestamp": "2026-02-14 00:42:44",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"*ele se aproxima dos produtos*\" \u2192 Action: *steps closer to the items* Speech: He approaches the goods."
+  },
+  {
+    "timestamp": "2026-02-14 00:46:48",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"\"precisam de protecao?\"\" \u2192 Action: *meets your gaze steadily* Speech: Do you need protection?"
+  },
+  {
+    "timestamp": "2026-02-14 00:48:45",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"como ganhar algumas moedas por aqui?\" \u2192 Action: *pauses thoughtfully* Speech: How to earn some coins here?"
+  },
+  {
+    "timestamp": "2026-02-14 00:55:15",
+    "sender": "ai",
+    "message": "[AI Option 1] *Nods slowly.* \"Breathe.\""
+  },
+  {
+    "timestamp": "2026-02-14 00:55:15",
+    "sender": "ai",
+    "message": "[AI Option 2] *Watches you closely.* \"Stay alert.\""
+  },
+  {
+    "timestamp": "2026-02-14 00:55:15",
+    "sender": "ai",
+    "message": "[AI Option 3] *Pauses briefly.* \"Calm your mind.\""
+  },
+  {
+    "timestamp": "2026-02-14 00:55:15",
+    "sender": "system",
+    "message": "Request to respond to Tindra   : Phew..."
+  },
+  {
+    "timestamp": "2026-02-14 00:56:35",
+    "sender": "ai",
+    "message": "[AI Option 1] \"I will rise.\""
+  },
+  {
+    "timestamp": "2026-02-14 00:56:35",
+    "sender": "ai",
+    "message": "[AI Option 2] \"Strength is required.\""
+  },
+  {
+    "timestamp": "2026-02-14 00:56:35",
+    "sender": "ai",
+    "message": "[AI Option 3] \"I am ready.\""
+  },
+  {
+    "timestamp": "2026-02-14 00:56:35",
+    "sender": "system",
+    "message": "Request to respond to Saewig Cynewald: <c\u0001\u0001>[Get back on your feet]</c>"
+  },
+  {
+    "timestamp": "2026-02-14 00:59:03",
+    "sender": "ai",
+    "message": "[AI Option 1] \"Fear is a heavy chain.\""
+  },
+  {
+    "timestamp": "2026-02-14 00:59:03",
+    "sender": "ai",
+    "message": "[AI Option 2] \"It can bind or it can free.\""
+  },
+  {
+    "timestamp": "2026-02-14 00:59:03",
+    "sender": "ai",
+    "message": "[AI Option 3] \"Strength lies in overcoming it.\""
+  },
+  {
+    "timestamp": "2026-02-14 00:59:03",
+    "sender": "system",
+    "message": "Request to respond to Saewig Cynewald: These bands would've kept me from their fear..."
+  },
+  {
+    "timestamp": "2026-02-14 00:59:42",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"mais alguem perdido?\" \u2192 Action: *raises an eyebrow* Speech: Another lost soul?"
+  },
+  {
+    "timestamp": "2026-02-14 01:04:44",
+    "sender": "ai",
+    "message": "[AI Option 1] \"Tattoos hold meaning, not power.\""
+  },
+  {
+    "timestamp": "2026-02-14 01:04:44",
+    "sender": "ai",
+    "message": "[AI Option 2] \"Lightning is indifferent to ink.\""
+  },
+  {
+    "timestamp": "2026-02-14 01:04:44",
+    "sender": "ai",
+    "message": "[AI Option 3] \"Focus on what you can control.\""
+  },
+  {
+    "timestamp": "2026-02-14 01:04:44",
+    "sender": "system",
+    "message": "Request to respond to Tindra   : They are useful. I have a crab tattoo too, but it doesnt help much with... well, lightning"
+  },
+  {
+    "timestamp": "2026-02-14 01:08:24",
+    "sender": "ai",
+    "message": "[AI Option 1] \"Gifts can carry weight.\""
+  },
+  {
+    "timestamp": "2026-02-14 01:08:24",
+    "sender": "ai",
+    "message": "[AI Option 2] \"Use them wisely.\""
+  },
+  {
+    "timestamp": "2026-02-14 01:08:24",
+    "sender": "ai",
+    "message": "[AI Option 3] \"Lycans are not to be taken lightly.\""
+  },
+  {
+    "timestamp": "2026-02-14 01:08:24",
+    "sender": "system",
+    "message": "Request to respond to Tindra   : They were a gift from a friend to let me slay lycans"
+  },
+  {
+    "timestamp": "2026-02-14 01:10:22",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"*\nesbo;a um sorriso*\" \u2192 Action: *nods slightly* Speech: A faint smile."
+  },
+  {
+    "timestamp": "2026-02-14 01:30:28",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"ele se aproxima um pouco sem jeito, talvez eu possa ajudar\" \u2192 Action: *Steps forward slightly, observing carefully* Speech: He approaches awkwardly. I may assist."
+  },
+  {
+    "timestamp": "2026-02-14 01:31:29",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"ultimo grupo nao sobreviveu na primeira mist\" \u2192 Action: *nods slowly* Speech: The last group did not survive the first Mist."
+  },
+  {
+    "timestamp": "2026-02-14 03:26:17",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Boa noite senhor voc\u00ea veio por a\u00ed um grupo passando\" \u2192 Action: *nods slightly* Speech: Good evening. A group passed this way."
+  },
+  {
+    "timestamp": "2026-02-14 03:27:59",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Ele olha para o homem mas parece que o mesmo n\u00e3o sabe o que responder\" \u2192 Action: *observes quietly* Speech: He looks at the man, but the man seems unsure."
+  },
+  {
+    "timestamp": "2026-02-14 03:29:00",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Muito obrigado senhor vou verificar se os mesmos\" \u2192 Action: *nods slightly* Speech: Thank you. I will check."
+  },
+  {
+    "timestamp": "2026-02-14 03:29:39",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"s\u00edtio conv\u00eanio vir ao meu lado\" \u2192 Action: *gestures to the side* Speech: Come to my side."
+  },
+  {
+    "timestamp": "2026-02-14 03:29:54",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"se n\u00e3o tem medos da morte\" \u2192 Action: *meets your gaze steadily* Speech: If one fears not death."
+  },
+  {
+    "timestamp": "2026-02-14 03:31:03",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"desculpa a correria eu sou um Andarilho e t\u00f4 acostumado com isso\" \u2192 Action: *nods slightly* Speech: I apologize for the haste. I am a traveler."
+  },
+  {
+    "timestamp": "2026-02-14 03:31:25",
+    "sender": "ai",
+    "message": "[AI Option 1] They follow the moon."
+  },
+  {
+    "timestamp": "2026-02-14 03:31:25",
+    "sender": "ai",
+    "message": "[AI Option 2] Into the woods, I suspect."
+  },
+  {
+    "timestamp": "2026-02-14 03:31:25",
+    "sender": "ai",
+    "message": "[AI Option 3] Their path is uncertain."
+  },
+  {
+    "timestamp": "2026-02-14 03:31:25",
+    "sender": "system",
+    "message": "Request to respond to Zerath Draemorin: Do you know where they were headed?"
+  },
+  {
+    "timestamp": "2026-02-14 03:32:05",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"ol\u00e1 senhor\" \u2192 Action: *nods slightly* Speech: Hello."
+  },
+  {
+    "timestamp": "2026-02-14 03:33:38",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"uma poderosa magia devo dizer\" \u2192 Action: *raises an eyebrow* Speech: A powerful magic, I see."
+  },
+  {
+    "timestamp": "2026-02-14 03:34:40",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"\u00f3leo de cidreira que mataram esse texugo\" \u2192 Action: *raises an eyebrow* Speech: Lemon balm oil killed that badger."
+  },
+  {
+    "timestamp": "2026-02-14 03:34:55",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"podem ter sido eles que mataram esse texugo\" \u2192 Action: *raises an eyebrow* Speech: They may have killed that badger."
+  },
+  {
+    "timestamp": "2026-02-14 03:37:37",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"eu vendo as montanhas l\u00e1 as coisas s\u00e3o bem diferentes\" \u2192 Action: *looks toward the mountains* Speech: The mountains hold their own truths."
+  },
+  {
+    "timestamp": "2026-02-14 03:39:39",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"confesso que n\u00e3o \u00e9 nem um pouco desafiador mas fazer o qu\u00ea\" \u2192 Action: *shrugs slightly* Speech: I admit, it lacks challenge. Yet, we must continue."
+  },
+  {
+    "timestamp": "2026-02-14 03:42:53",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Ok para onde voc\u00ea quer ir\" \u2192 Action: *pauses thoughtfully* Speech: Where do you wish to go?"
+  },
+  {
+    "timestamp": "2026-02-14 03:43:34",
+    "sender": "ai",
+    "message": "[AI Option 1] \"Running may be necessary.\""
+  },
+  {
+    "timestamp": "2026-02-14 03:43:34",
+    "sender": "ai",
+    "message": "[AI Option 2] \"Caution is advised.\""
+  },
+  {
+    "timestamp": "2026-02-14 03:43:34",
+    "sender": "ai",
+    "message": "[AI Option 3] \"We will assess the risk.\""
+  },
+  {
+    "timestamp": "2026-02-14 03:43:34",
+    "sender": "system",
+    "message": "Request to respond to Zerath Draemorin: We can check Lycans for them. We may have to run."
+  },
+  {
+    "timestamp": "2026-02-14 03:45:48",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"bichos imundos\" \u2192 Action: *frowns slightly* Speech: Filthy creatures."
+  },
+  {
+    "timestamp": "2026-02-14 03:50:29",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Ol\u00e1 senhorita\" \u2192 Action: *nods slightly* Speech: Hello, miss."
+  },
+  {
+    "timestamp": "2026-02-14 03:51:30",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"eu acho que voc\u00ea j\u00e1 tinha a situa\u00e7\u00e3o dominada\" \u2192 Action: *meets your gaze steadily* Speech: I believe you had it under control."
+  },
+  {
+    "timestamp": "2026-02-14 03:52:56",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"eu acho que nosso amigo mago vai fazer essa aventura ficar sem gra\u00e7a\" \u2192 Action: *raises an eyebrow* Speech: I sense your concern. Magic can be unpredictable."
+  },
+  {
+    "timestamp": "2026-02-14 03:53:13",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"nosso amigo mago vai fazer essa aventura ficar muito sem gra\u00e7a\" \u2192 Action: *raises an eyebrow* Speech: Our mage may dull this adventure."
+  },
+  {
+    "timestamp": "2026-02-14 03:54:05",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"O que voc\u00ea acha sobre isso ser\u00e1\" \u2192 Action: *pauses thoughtfully* Speech: What do you think will happen?"
+  },
+  {
+    "timestamp": "2026-02-14 03:54:45",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"eu acho que podemos achar um desafio altura\" \u2192 Action: *considers thoughtfully* Speech: I believe we can find a worthy challenge."
+  },
+  {
+    "timestamp": "2026-02-14 03:55:29",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"voc\u00ea acha que eu devo ir at\u00e9 l\u00e1 checar se ela t\u00e1 bem\" \u2192 Action: *pauses thoughtfully* Speech: You should check on her."
+  },
+  {
+    "timestamp": "2026-02-14 04:00:33",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"o mago me mandou aqui v\u00ea se voc\u00ea devia ficar bem\" \u2192 Action: *meets your gaze steadily* Speech: The wizard sent you to check on me."
+  },
+  {
+    "timestamp": "2026-02-14 04:02:06",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Ele parece que quando sente um cheiro n\u00e3o larga uma presa\" \u2192 Action: *raises an eyebrow* Speech: He seems relentless when he catches a scent."
+  },
+  {
+    "timestamp": "2026-02-14 04:03:51",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"n\u00e3o eu t\u00f4 muito velho para ficar correndo atr\u00e1s de cachorro\" \u2192 Action: *shakes his head slightly* Speech: I am too old for such pursuits."
+  },
+  {
+    "timestamp": "2026-02-14 04:06:48",
+    "sender": "ai",
+    "message": "[AI Option 1] \"Stay alert, then.\""
+  },
+  {
+    "timestamp": "2026-02-14 04:06:48",
+    "sender": "ai",
+    "message": "[AI Option 2] \"Time is uncertain.\""
+  },
+  {
+    "timestamp": "2026-02-14 04:06:48",
+    "sender": "ai",
+    "message": "[AI Option 3] \"We should prepare for the worst.\""
+  },
+  {
+    "timestamp": "2026-02-14 04:06:48",
+    "sender": "system",
+    "message": "Request to respond to Gabriella Barozzi: \"We can probably manage a bit more. I'm not sure how long the mage's wards will last us.\""
+  },
+  {
+    "timestamp": "2026-02-14 04:11:58",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"parece que o swords Fake\" \u2192 Action: *raises an eyebrow* Speech: It seems like a false blade."
+  },
+  {
+    "timestamp": "2026-02-14 04:12:18",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"parece que as ben\u00e7\u00e3os est\u00e3o acabando\" \u2192 Action: *pauses thoughtfully* Speech: It seems the blessings are fading."
+  },
+  {
+    "timestamp": "2026-02-14 04:14:39",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Voc\u00ea me assustou achei que era um deles\" \u2192 Action: *raises an eyebrow* Speech: You startled me. I thought you were one of them."
+  },
+  {
+    "timestamp": "2026-02-14 04:15:24",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"pensei esse a\u00ed deve ser bem forte\" \u2192 Action: *raises an eyebrow* Speech: Strength is often deceptive."
+  },
+  {
+    "timestamp": "2026-02-14 04:15:32",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"pensei v\u00edrgula esse a\u00ed deve ser bem forte\" \u2192 Action: *raises an eyebrow* Speech: I thought that one must be quite strong."
+  },
+  {
+    "timestamp": "2026-02-14 04:17:21",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"o fogo ajudava a n\u00e3o deix\u00e1-los cicatrizar\" \u2192 Action: *pauses thoughtfully* Speech: The fire prevented healing."
+  },
+  {
+    "timestamp": "2026-02-15 03:20:42",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"\u00e0s vezes eles podem demorar semanas para chegar\" \u2192 Action: *pauses thoughtfully* Speech: Sometimes, they may take weeks to arrive."
+  },
+  {
+    "timestamp": "2026-02-18 01:01:36",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"nunca pensei que nesse lugar tamb\u00e9m haveria under Dark e drows\" \u2192 Action: *raises an eyebrow* Speech: I did not expect drow in this place."
+  },
+  {
+    "timestamp": "2026-02-18 01:02:22",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"ele acaba falando mais alto do que esperava\" \u2192 Action: *raises an eyebrow* Speech: He speaks louder than intended."
+  },
+  {
+    "timestamp": "2026-02-18 01:41:45",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"asdasd\" \u2192 Action: *raises an eyebrow* Speech: I do not understand."
+  },
+  {
+    "timestamp": "2026-02-18 02:50:52",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Bom dia posso ver suas mercadorias\" \u2192 Action: *nods slightly* Speech: Good morning. May I see your wares?"
+  },
+  {
+    "timestamp": "2026-02-18 02:53:38",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"eu n\u00e3o tinha inten\u00e7\u00e3o de me aproveitar de voc\u00ea\" \u2192 Action: *meets your gaze steadily* Speech: I did not intend to exploit you."
+  },
+  {
+    "timestamp": "2026-02-18 02:55:13",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Eu pensei que voc\u00ea poderia ter mais alguns a\u00ed com voc\u00ea\" \u2192 Action: *raises an eyebrow* Speech: I thought you might have more with you."
+  },
+  {
+    "timestamp": "2026-02-18 02:56:31",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"meu agradecimento senhorita\" \u2192 Action: *nods slightly* Speech: My thanks, miss."
+  },
+  {
+    "timestamp": "2026-02-18 02:59:13",
+    "sender": "ai",
+    "message": "[AI Option 1] \"Nor is it kind.\""
+  },
+  {
+    "timestamp": "2026-02-18 02:59:13",
+    "sender": "ai",
+    "message": "[AI Option 2] \"I will remain vigilant.\""
+  },
+  {
+    "timestamp": "2026-02-18 02:59:13",
+    "sender": "ai",
+    "message": "[AI Option 3] \"Thank you. Caution is wise.\""
+  },
+  {
+    "timestamp": "2026-02-18 02:59:13",
+    "sender": "system",
+    "message": "Request to respond to Alcina Lucrescu: Mm. Travel safely. The Old Night is not forgiving."
+  },
+  {
+    "timestamp": "2026-02-18 03:00:06",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"ent\u00e3o estamos entendidos\" \u2192 Action: *nods slightly* Speech: Then we are understood."
+  },
+  {
+    "timestamp": "2026-02-18 03:02:09",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"Agora eu entendo o conceito de luz e escurid\u00e3o\" \u2192 Action: *nods slightly* Speech: Now I grasp the balance of light and darkness."
+  },
+  {
+    "timestamp": "2026-02-18 03:18:51",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"cuidado Acabei de ver por criaturas pequenas por a\u00ed\" \u2192 Action: *raises an eyebrow* Speech: Be cautious. I just saw small creatures nearby."
+  },
+  {
+    "timestamp": "2026-02-18 03:21:13",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"eu n\u00e3o me oporia a algum treinamento\" \u2192 Action: *nods slightly* Speech: I would not resist training."
+  },
+  {
+    "timestamp": "2026-02-18 03:21:31",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"teu nome Euforia a um treinamento dessa hora\" \u2192 Action: *raises an eyebrow* Speech: Your name is Euphoria? Training at this hour?"
+  },
+  {
+    "timestamp": "2026-02-18 03:21:45",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"eu n\u00e3o me oporia a um treinamento\" \u2192 Action: *nods slightly* Speech: I would not oppose training."
+  },
+  {
+    "timestamp": "2026-02-18 03:22:51",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"eu estava pensando em alguma coisa mais desafiadora\" \u2192 Action: *considers thoughtfully* Speech: I seek a greater challenge."
+  },
+  {
+    "timestamp": "2026-02-18 03:23:20",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"eu estava pensando em alguma coisa mas desafiador\" \u2192 Action: *pauses thoughtfully* Speech: I considered something... challenging."
+  },
+  {
+    "timestamp": "2026-02-18 03:25:30",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"eu estava pensando em alguma coisa mas desafiadora como vampiros\" \u2192 Action: *pauses thoughtfully* Speech: I considered something challenging-like vampires."
+  },
+  {
+    "timestamp": "2026-02-18 03:26:34",
+    "sender": "ai",
+    "message": "[AI Option 1] \"Small creatures can be cunning.\""
+  },
+  {
+    "timestamp": "2026-02-18 03:26:34",
+    "sender": "ai",
+    "message": "[AI Option 2] \"Every hunt has its challenges.\""
+  },
+  {
+    "timestamp": "2026-02-18 03:26:34",
+    "sender": "ai",
+    "message": "[AI Option 3] \"Focus on what is before you.\""
+  },
+  {
+    "timestamp": "2026-02-18 03:26:34",
+    "sender": "system",
+    "message": "Request to respond to Ilyana: I would love to hunt vampires. But there is still the matter of small creatures. [chuckles]"
+  },
+  {
+    "timestamp": "2026-02-18 03:36:36",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"alguma chance aqui de gente ganhar algum dinheiro nesse local\" \u2192 Action: *pauses thoughtfully* Speech: Is there a chance to earn here?"
+  },
+  {
+    "timestamp": "2026-02-18 03:37:12",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"faturar algumas moedas estou com os bolsos vazios\" \u2192 Action: *raises an eyebrow* Speech: I seek to earn some coins. My pockets are empty."
+  },
+  {
+    "timestamp": "2026-02-18 03:38:22",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"tenha uma boa noite\" \u2192 Action: *nods slightly* Speech: Have a good night."
+  },
+  {
+    "timestamp": "2026-02-18 03:39:14",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"dele de quem\" \u2192 Action: *pauses thoughtfully* Speech: Of whom?"
+  },
+  {
+    "timestamp": "2026-02-18 03:40:20",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"ele olha ao redor e sorri\" \u2192 Action: *glances around calmly* Speech: He observes quietly."
+  },
+  {
+    "timestamp": "2026-02-18 03:40:57",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"acho melhor descansar na Taverna\" \u2192 Action: *nods slightly* Speech: Resting at the tavern is wise."
+  },
+  {
+    "timestamp": "2026-02-18 03:42:38",
+    "sender": "system",
+    "message": "Custom message interpretation - Original: \"ao chegar na Taverna se encosta ao balc\u00e3o e pede uma bebida\" \u2192 Action: *leans against the bar* Speech: I will have a drink."
   }
 ]

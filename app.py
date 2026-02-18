@@ -25,6 +25,14 @@ logging.basicConfig(level=logging.INFO,
                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Debug: capture last log_update payload for quick verification
+LAST_LOG_UPDATE = {
+    "timestamp": None,
+    "source": None,
+    "client": None,
+    "lines_preview": None,
+}
+
 # Enable detailed Socket.IO and Engine.IO logging
 engineio_logger = logging.getLogger('engineio')
 engineio_logger.setLevel(logging.DEBUG)
@@ -244,6 +252,7 @@ def process_new_messages(data: str, client=None, user_characters=None, override_
     """Process incoming chat messages and emit events to clients."""
     lines = data.strip().split('\n')
     logger.info(f"Processing {len(lines)} new message lines")
+    logger.info(f"process_new_messages: client={client} user_characters={len(user_characters) if user_characters else 0} override_character={override_character}")
     
     active_char = None
     
@@ -329,30 +338,25 @@ def process_new_messages(data: str, client=None, user_characters=None, override_
         # Parse the original message content for player messages
         original_message = None
         if not is_own_message:
-            # Try to match [Account] Character: [Talk] message
-            match = re.match(r"\[([^\]]+)\] ([^:]+): \[Talk\] (.*)", line)
+            # Only accept full format: [username] char name: [mode] msg
+            match = re.match(r"^\[([^\]]+)\] ([^:]+): \[([^\]]+)\] (.*)$", line)
             if match:
-                account, char_name, player_message = match.groups()
-                original_message = player_message
-            else:
-                # Fallback: Try to match Name: [Talk] message
-                match = re.match(r"([^:]+): \[Talk\] (.*)", line)
-                if match:
-                    name, player_message = match.groups()
+                account, char_name, mode, player_message = match.groups()
+                if mode == "Talk":
                     original_message = player_message
         
-        # Format the message for display
-        formatted_message = line
-        # Check if this has Talk format, if so, make it more readable
-        talk_match = re.match(r"\[([^\]]+)\] ([^:]+): \[Talk\] (.*)", line)
-        if talk_match:
-            account, speaker, text = talk_match.groups()
-            formatted_message = f"<strong>{speaker}:</strong> {text}"
-        else:
-            simple_match = re.match(r"([^:]+): \[Talk\] (.*)", line)
-            if simple_match:
-                speaker, text = simple_match.groups()
-                formatted_message = f"<strong>{speaker}:</strong> {text}"
+        # Only display accepted conversation format: [username] char name: [Talk] msg
+        talk_match = re.match(r"^\[([^\]]+)\] ([^:]+): \[([^\]]+)\] (.*)$", line)
+        if not talk_match:
+            # Not a standard chat line; skip without aborting the batch.
+            logger.info(f"Skipping non-chat line: {line[:120]}")
+            continue
+        account, speaker, mode, text = talk_match.groups()
+        if mode != "Talk":
+            # Only show Talk lines, but keep processing other lines in this batch.
+            logger.info(f"Skipping non-Talk line: {line[:120]}")
+            continue
+        formatted_message = f"<strong>{speaker}:</strong> {text}"
         
         # Emit the new_message event to all clients
         logger.info(f"Broadcasting message to all clients")
@@ -367,26 +371,15 @@ def process_new_messages(data: str, client=None, user_characters=None, override_
             
         # Process NPC/player messages for auto-reply
         if not is_own_message:
-            # Try to match [Account] Character: [Talk] message
-            match = re.match(r"\[([^\]]+)\] ([^:]+): \[Talk\] (.*)", line)
+            # Only accept full format: [username] char name: [mode] msg
+            match = re.match(r"^\[([^\]]+)\] ([^:]+): \[([^\]]+)\] (.*)$", line)
             if match:
-                account, char_name, player_message = match.groups()
-                logger.info(f"Broadcasting player message from {char_name} to all clients")
-                socketio.emit('player_message', {
-                    'character': character_name,
-                    'player_name': char_name,
-                    'message': player_message,
-                    'client': client
-                })
-            else:
-                # Fallback: Try to match Name: [Talk] message
-                match = re.match(r"([^:]+): \[Talk\] (.*)", line)
-                if match:
-                    name, player_message = match.groups()
-                    logger.info(f"Broadcasting player message from {name} to all clients")
+                account, char_name, mode, player_message = match.groups()
+                if mode == "Talk":
+                    logger.info(f"Broadcasting player message from {char_name} to all clients")
                     socketio.emit('player_message', {
                         'character': character_name,
-                        'player_name': name,
+                        'player_name': char_name,
                         'message': player_message,
                         'client': client
                     })
@@ -432,10 +425,9 @@ def generate_in_character_reply(character_name, player_message, num_alternatives
         f"{creativity_instruction}\n"
         f"\nNever break character. Respond to the following as your character would.\n"
         f"\nImportant formatting notes: Never use em dashes (—) in your responses. Use regular hyphens (-) or just avoid them entirely.\n"
-        f"\nGenerate three distinct in-character replies to the player message, each with a different style:"
-        f"\n1. Fast, dry, and pointed (1 line)."
-        f"\n2. Elegant but not long (2 lines)."
-        f"\n3. Creative and elegant, with some flair (3 lines)."
+        f"\nGenerate three distinct, varied in-character replies to the player message."
+        f"\nEach reply must be a single line (no line breaks)."
+        f"\nDo not label them as positive/neutral/negative or by length."
         f"\nLabel each reply as '1.', '2.', and '3.' respectively."
     )
     
@@ -485,6 +477,7 @@ def generate_in_character_reply(character_name, player_message, num_alternatives
         matches = re.split(r'\n?\s*\d\.\s*', content)
         # The first split part is before '1.', so ignore it
         options = [m.strip() for m in matches[1:4] if m.strip()]
+        options = [re.sub(r'\s*\n\s*', ' ', opt).strip() for opt in options]
         
         # Record AI responses in history
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1135,12 +1128,62 @@ def handle_feedback(data):
     result = save_feedback(character, message_data, response, rating, notes)
     emit('feedback_result', result)
 
+@socketio.on('log_update')
+def handle_log_update_socket(data):
+    """Receive log updates over Socket.IO from NWN Log Client."""
+    try:
+        logger.info("Received log_update via Socket.IO: %s", data)
+        if not isinstance(data, dict):
+            logger.warning("log_update payload is not a dict: %s", type(data))
+            return
+
+        client = data.get('client') or data.get('client_name') or data.get('username') or 'default'
+        lines = data.get('lines')
+        if lines is None:
+            logger.warning("log_update payload missing 'lines'")
+            return
+
+        if isinstance(lines, str):
+            lines_list = lines.splitlines()
+        elif isinstance(lines, list):
+            lines_list = lines
+        else:
+            logger.warning("log_update 'lines' has unexpected type: %s", type(lines))
+            return
+
+        if lines_list:
+            logger.info("log_update (socket) lines preview (up to 5): %s", lines_list[:5])
+            LAST_LOG_UPDATE.update({
+                "timestamp": datetime.datetime.now().isoformat(),
+                "source": "socketio",
+                "client": client,
+                "lines_preview": lines_list[:5],
+            })
+            log_text = "\n".join(lines_list)
+            user_characters = {name: profile for name, profile in character_profiles.items()
+                               if profile.get('owner') == client}
+            process_new_messages(log_text, client=client, user_characters=user_characters)
+    except Exception as e:
+        logger.error("Error processing Socket.IO log_update: %s", e)
+
 @app.route('/api/log_update', methods=['POST'])
 def log_update():
     """Endpoint to receive log updates from NWN Log Client."""
     try:
         data = request.get_json() or request.form.to_dict()
         app.logger.info("Received log update: %s", data)
+        try:
+            if isinstance(data, dict) and 'lines' in data:
+                preview_lines = data['lines'][:5] if isinstance(data['lines'], list) else data['lines']
+                app.logger.info("log_update lines preview (up to 5): %s", preview_lines)
+                LAST_LOG_UPDATE.update({
+                    "timestamp": datetime.datetime.now().isoformat(),
+                    "source": "http",
+                    "client": data.get('client', 'default') if isinstance(data, dict) else None,
+                    "lines_preview": preview_lines if isinstance(preview_lines, list) else [preview_lines],
+                })
+        except Exception as log_err:
+            app.logger.warning("Failed to log line preview: %s", log_err)
         
         if 'lines' in data:
             log_text = "\n".join(data['lines'])
@@ -1157,6 +1200,11 @@ def log_update():
     except Exception as e:
         app.logger.error("Error processing log update: %s", e)
         return jsonify(success=False, error=str(e)), 500
+
+@app.route('/debug_last_log')
+def debug_last_log():
+    """Quick sanity check to see last log_update received."""
+    return jsonify(LAST_LOG_UPDATE)
 
 # Load server configuration
 def load_server_config():
@@ -1278,11 +1326,15 @@ def generate_response():
         for entry in chat_history:
             conversation_text += f"{entry['role']}: {entry['message']}\n"
 
-        # Append instructions for the multi-tone response
-        conversation_text += ("\nBased on the above conversation, please provide three distinct responses with the following tones:\n"
-                              "Positive Answer: \n"
-                              "Neutral Answer: \n"
-                              "Negative Answer: \n")
+        # Append instructions for three single-line alternatives
+        conversation_text += (
+            "\nBased on the above conversation, provide three distinct in-character responses.\n"
+            "Each response must be a single line with no line breaks.\n"
+            "Label them as:\n"
+            "1. \n"
+            "2. \n"
+            "3. \n"
+        )
 
         # Call the OpenAI API (ensure OPENAI_API_KEY is set in environment variables)
         import openai, os, re
@@ -1296,21 +1348,20 @@ def generate_response():
         )
         response_text = response.choices[0].text.strip()
 
-        # Parse the response to extract the three tone answers
-        pos_match = re.search(r"Positive Answer:\s*(.*?)\n(?:Neutral Answer:|Negative Answer:|$)", response_text, re.DOTALL)
-        neu_match = re.search(r"Neutral Answer:\s*(.*?)\n(?:Negative Answer:|$)", response_text, re.DOTALL)
-        neg_match = re.search(r"Negative Answer:\s*(.*)", response_text, re.DOTALL)
-
-        positive = pos_match.group(1).strip() if pos_match else ""
-        neutral = neu_match.group(1).strip() if neu_match else ""
-        negative = neg_match.group(1).strip() if neg_match else ""
+        # Parse the response to extract three numbered answers
+        matches = re.split(r'\n?\s*\d\.\s*', response_text)
+        options = [m.strip() for m in matches[1:4] if m.strip()]
+        options = [re.sub(r'\s*\n\s*', ' ', opt).strip() for opt in options]
+        while len(options) < 3:
+            options.append("")
 
         # Save the updated chat history back to the session
         session['chat_history'] = chat_history
         return jsonify({
-            'positive': positive,
-            'neutral': neutral,
-            'negative': negative
+            'responses': options,
+            'positive': options[0],
+            'neutral': options[1],
+            'negative': options[2]
         })
     except Exception as e:
         return jsonify({'error': str(e)})
@@ -1832,12 +1883,23 @@ if __name__ == "__main__":
     logger.info(f"Starting server on {host}:{port}")
     
     # Run with eventlet
-    socketio.run(app, 
-                 host=host, 
-                 port=port, 
-                 debug=True, 
-                 allow_unsafe_werkzeug=True,
-                 log_output=True)
+    run_kwargs = {
+        "debug": False,
+        "allow_unsafe_werkzeug": True,
+        "log_output": True,
+        "use_reloader": False,
+    }
+    # Default to HTTP behind Caddy; enable TLS only if explicitly requested.
+    if os.getenv("APP_TLS", "").lower() in ("1", "true", "yes"):
+        run_kwargs["certfile"] = "/home/d6lab/nwn-persona-web/certs/local.pem"
+        run_kwargs["keyfile"] = "/home/d6lab/nwn-persona-web/certs/local-key.pem"
+
+    socketio.run(
+        app,
+        host=host,
+        port=port,
+        **run_kwargs,
+    )
 else:
     # For gunicorn or other WSGI servers
     start_monitor() 
