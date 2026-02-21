@@ -28,6 +28,7 @@ const translationResultElement = document.getElementById('translation-result');
 const translatedTextElement = document.getElementById('translated-text');
 const translatedActionElement = document.getElementById('translated-action');
 const copyTranslationButton = document.getElementById('copy-translation');
+const translationContextBadge = document.getElementById('translation-context-badge');
 const includeActionCheckbox = document.getElementById('include-action');
 const feedbackSummaryElement = document.getElementById('feedback-summary');
 const feedbackProgressElement = document.getElementById('feedback-progress');
@@ -554,6 +555,7 @@ generateResponseButton.addEventListener('click', () => {
 // Translation button handler
 translateButton.addEventListener('click', () => {
     const portugueseText = portugueseTextElement.value.trim();
+    const translationContext = buildConversationContext(lastPlayerName);
     
     if (!activeCharacter) {
         const toastBody = notificationToast.querySelector('.toast-body');
@@ -580,10 +582,21 @@ translateButton.addEventListener('click', () => {
     // Send translation request
     socket.emit('translate_message', {
         character: activeCharacter,
-        text: portugueseText
+        text: portugueseText,
+        context: translationContext
     });
 
     portugueseTextElement.value = '';
+
+    if (translationContextBadge) {
+        if (translationContext && translationContext.messages && translationContext.messages.length > 0) {
+            translationContextBadge.classList.remove('d-none');
+            translationContextBadge.title = `${translationContext.messages.length} context messages included`;
+        } else {
+            translationContextBadge.classList.add('d-none');
+            translationContextBadge.title = '';
+        }
+    }
 });
 
 if (includeActionCheckbox) {
@@ -1218,9 +1231,11 @@ function buildConversationContext(playerName) {
     };
     
     // Get the last 3-4 messages from this player (character-specific context)
-    const playerMessages = userChatHistories[currentUser]
-        .filter(msg => msg.speaker === playerName)
-        .slice(0, 4);
+    const playerMessages = playerName
+        ? userChatHistories[currentUser]
+            .filter(msg => msg.speaker === playerName)
+            .slice(0, 4)
+        : [];
     
     // Get the last 2-3 messages from the overall conversation (immediate context)
     const recentMessages = userChatHistories[currentUser].slice(0, 3);
@@ -1254,7 +1269,8 @@ function buildConversationContext(playerName) {
         const firstMsg = contextMessages[0];
         const lastMsg = contextMessages[contextMessages.length - 1];
         
-        context.summary = `Conversation between ${activeCharacter} and ${playerName} about ${firstMsg.text.substring(0, 30)}...`;
+        const participants = playerName ? `${activeCharacter} and ${playerName}` : `${activeCharacter} and others`;
+        context.summary = `Conversation between ${participants} about ${firstMsg.text.substring(0, 30)}...`;
     }
     
     // Add user identifier to context

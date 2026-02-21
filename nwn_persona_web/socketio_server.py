@@ -25,6 +25,7 @@ def register_socketio_handlers(
         """WebSocket endpoint to translate a message"""
         character_name = data.get("character", session.get("active_character"))
         portuguese_text = data.get("text", "")
+        context = data.get("context", None)
 
         if not character_name or not portuguese_text:
             emit("translation_result", {"error": "Missing character or text"})
@@ -33,6 +34,7 @@ def register_socketio_handlers(
         result = chat_processing.translate_custom_message(
             character_name,
             portuguese_text,
+            context=context,
             character_profiles=get_character_profiles(),
             get_openai_api_key=get_openai_api_key,
             save_to_history_func=lambda *args, **kwargs: (

@@ -166,6 +166,7 @@ def translate_message():
     data = request.json
     character_name = data.get("character", active_character)
     portuguese_text = data.get("text", "")
+    context = data.get("context", None)
 
     if not character_name:
         return jsonify({"error": "No active character selected"}), 400
@@ -176,6 +177,7 @@ def translate_message():
     result = chat_processing.translate_custom_message(
         character_name,
         portuguese_text,
+        context=context,
         character_profiles=character_profiles,
         get_openai_api_key=get_openai_api_key,
         save_to_history_func=lambda *args, **kwargs: chat_processing.save_to_history(

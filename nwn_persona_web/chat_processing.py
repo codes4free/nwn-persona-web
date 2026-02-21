@@ -5,12 +5,16 @@ import json
 import os
 import re
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import openai
 from flask import session
 
 from .settings import CHAT_HISTORY_DIR, SYSTEM_PATTERN
+
+CONTEXT_SUMMARY_CACHE: Dict[Tuple[str, str], Dict[str, Any]] = {}
+CONTEXT_SUMMARY_MAX_MESSAGES = 16
+CONTEXT_SUMMARY_REFRESH_TURNS = 4
 
 
 def setup_chat_history(
@@ -69,6 +73,182 @@ def save_to_history(
     except Exception as e:
         if logger:
             logger.error(f"Error saving to chat history: {e}")
+
+
+def _extract_player_name(message: str) -> str:
+    account_match = re.search(r"\[([^\]]+)\] ([^:]+):", message)
+    if account_match:
+        return account_match.group(2)
+
+    simple_match = re.match(r"^([^:]+):", message)
+    if simple_match:
+        return simple_match.group(1)
+
+    return "Unknown"
+
+
+def _extract_message_text(message: str) -> str:
+    talk_match = re.search(r"\[Talk\] (.*)", message)
+    if talk_match:
+        return talk_match.group(1)
+
+    name_match = re.match(r"^[^:]+: (.*)", message)
+    if name_match:
+        return name_match.group(1)
+
+    return message
+
+
+def _load_history_entries(
+    character_name: str, *, user: Optional[str] = None, logger=None
+) -> list:
+    user = user or session.get("user", "default")
+    character_dir = os.path.join(
+        CHAT_HISTORY_DIR, user, character_name.replace(" ", "_")
+    )
+    history_file = os.path.join(character_dir, "chat_history.json")
+    if not os.path.exists(history_file):
+        return []
+    try:
+        with open(history_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        if logger:
+            logger.error(f"Error loading chat history: {e}")
+        return []
+
+
+def _build_recent_context_messages(
+    history_entries: list,
+    *,
+    character_name: str,
+    max_messages: int = CONTEXT_SUMMARY_MAX_MESSAGES,
+) -> list:
+    messages = []
+    for entry in reversed(history_entries):
+        sender = entry.get("sender")
+        if sender not in {"self", "other"}:
+            continue
+        raw_message = entry.get("message", "")
+        if not raw_message:
+            continue
+        speaker = (
+            character_name if sender == "self" else _extract_player_name(raw_message)
+        )
+        text = _extract_message_text(raw_message).strip()
+        if not text:
+            continue
+        messages.append(
+            {
+                "speaker": speaker,
+                "text": text,
+                "timestamp": entry.get("timestamp"),
+            }
+        )
+        if len(messages) >= max_messages:
+            break
+    messages.reverse()
+    return messages
+
+
+def _summarize_context(
+    *,
+    messages: list,
+    persona: Dict[str, Any],
+    get_openai_api_key,
+    logger=None,
+) -> Dict[str, str]:
+    if not messages:
+        return {"persona_notes": "", "scene_summary": ""}
+
+    system_prompt = (
+        "You summarize roleplay conversations for in-character responses. "
+        "Return JSON only with fields: persona_notes, scene_summary. "
+        "persona_notes = the character's current tone, commitments, relationships, and "
+        "any stated preferences or constraints. "
+        "scene_summary = the current topic, recent events, goals, locations, and named entities. "
+        "Prioritize factual continuity and commitments first, then tone and style. "
+        "Do not invent facts. Keep each field under 80 words. "
+        "Use plain sentences, no bullet lists."
+    )
+    persona_hint = (
+        f"Character Persona: {persona.get('persona', '')}\n"
+        f"Traits: {', '.join(persona.get('traits', []))}\n"
+        f"Mannerisms: {', '.join(persona.get('mannerisms', []))}\n"
+    )
+    conversation = "\n".join(
+        [f"{m.get('speaker')}: {m.get('text')}" for m in messages]
+    )
+    user_prompt = (
+        f"{persona_hint}\nConversation:\n{conversation}\n\nReturn JSON now."
+    )
+
+    try:
+        openai.api_key = get_openai_api_key()
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_tokens=200,
+            temperature=0.2,
+            n=1,
+        )
+        content = response.choices[0].message.content.strip()
+        parsed = json.loads(content)
+        if isinstance(parsed, dict):
+            return {
+                "persona_notes": str(parsed.get("persona_notes", "")).strip(),
+                "scene_summary": str(parsed.get("scene_summary", "")).strip(),
+            }
+    except Exception as e:
+        if logger:
+            logger.error(f"Error summarizing context: {e}")
+    return {"persona_notes": "", "scene_summary": ""}
+
+
+def get_context_summary_from_history(
+    character_name: str,
+    *,
+    persona: Dict[str, Any],
+    get_openai_api_key,
+    user: Optional[str] = None,
+    logger=None,
+) -> Dict[str, Any]:
+    user = user or session.get("user", "default")
+    history_entries = _load_history_entries(
+        character_name, user=user, logger=logger
+    )
+    context_messages = _build_recent_context_messages(
+        history_entries, character_name=character_name
+    )
+    history_len = len(history_entries)
+
+    cache_key = (user, character_name)
+    cache_entry = CONTEXT_SUMMARY_CACHE.get(cache_key)
+    if cache_entry:
+        cached_len = cache_entry.get("history_len", 0)
+        if history_len >= cached_len and (
+            history_len - cached_len < CONTEXT_SUMMARY_REFRESH_TURNS
+        ):
+            return {
+                "summary": cache_entry.get("summary", {}),
+                "messages": context_messages,
+            }
+
+    summary = _summarize_context(
+        messages=context_messages,
+        persona=persona,
+        get_openai_api_key=get_openai_api_key,
+        logger=logger,
+    )
+    CONTEXT_SUMMARY_CACHE[cache_key] = {
+        "summary": summary,
+        "history_len": history_len,
+        "updated_at": time.time(),
+    }
+    return {"summary": summary, "messages": context_messages}
 
 
 def monitor_chat(*, is_running, logger=None) -> None:
@@ -326,6 +506,23 @@ def generate_in_character_reply(
     # Build messages array with context if available
     messages = [{"role": "system", "content": system_prompt}]
 
+    context_payload = get_context_summary_from_history(
+        character_name,
+        persona=persona,
+        get_openai_api_key=get_openai_api_key,
+        logger=logger,
+    )
+    context_summary = context_payload.get("summary", {}) if context_payload else {}
+    if context_summary and (
+        context_summary.get("persona_notes") or context_summary.get("scene_summary")
+    ):
+        summary_text = (
+            "Conversation summary for context:\n"
+            f"Persona continuity: {context_summary.get('persona_notes', '')}\n"
+            f"Scene context: {context_summary.get('scene_summary', '')}"
+        )
+        messages.append({"role": "system", "content": summary_text})
+
     # Add conversation context if available
     if context and context.get("messages") and len(context.get("messages", [])) > 0:
         # Log context being used
@@ -397,6 +594,7 @@ def translate_custom_message(
     character_name,
     portuguese_text,
     *,
+    context=None,
     character_profiles: Dict[str, Any],
     get_openai_api_key,
     save_to_history_func,
@@ -458,13 +656,59 @@ def translate_custom_message(
     )
 
     try:
+        context_payload = get_context_summary_from_history(
+            character_name,
+            persona=persona,
+            get_openai_api_key=get_openai_api_key,
+            logger=logger,
+        )
+        context_summary = context_payload.get("summary", {}) if context_payload else {}
+
+        messages = [{"role": "system", "content": system_prompt}]
+
+        if context_summary and (
+            context_summary.get("persona_notes")
+            or context_summary.get("scene_summary")
+        ):
+            summary_text = (
+                "Conversation summary for context:\n"
+                f"Persona continuity: {context_summary.get('persona_notes', '')}\n"
+                f"Scene context: {context_summary.get('scene_summary', '')}"
+            )
+            messages.append({"role": "system", "content": summary_text})
+
+        if context and context.get("messages") and len(context.get("messages", [])) > 0:
+            if logger:
+                logger.info(
+                    "Using context window with %s messages for translation",
+                    len(context.get("messages", [])),
+                )
+            for msg in context.get("messages", []):
+                if msg.get("speaker") and msg.get("text"):
+                    role = (
+                        "assistant"
+                        if msg.get("speaker") == character_name
+                        else "user"
+                    )
+                    messages.append(
+                        {
+                            "role": role,
+                            "content": f"{msg.get('speaker')}: {msg.get('text')}",
+                        }
+                    )
+            messages.append(
+                {
+                    "role": "system",
+                    "content": "The above messages provide context for the conversation. Now respond to the following request:",
+                }
+            )
+
+        messages.append({"role": "user", "content": user_prompt})
+
         openai.api_key = get_openai_api_key()
         response = openai.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
+            messages=messages,
             max_tokens=250,
             temperature=temperature,
             n=1,
