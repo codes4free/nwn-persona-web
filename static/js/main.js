@@ -291,12 +291,17 @@ socket.on('new_message', (data) => {
                 addToChatHistory({
                     speaker: speakerName,
                     text: data.original_message || textContent,
+                    languageCode: data.language_code || null,
+                    languageName: data.language_name || null,
                     isSelf: data.is_own,
                     timestamp: new Date().toISOString()
                 });
             }
         
-        appendChatMessage(data.message, data.is_own, data.original_message);
+        appendChatMessage(data.message, data.is_own, data.original_message, {
+            languageCode: data.language_code || null,
+            languageName: data.language_name || null
+        });
         console.log('Message appended to chat');
         
         // Force scroll to bottom
@@ -357,13 +362,20 @@ socket.on('player_message', (data) => {
     // Continue processing even if not for current user, as the client might want to respond to any message
     lastPlayerMessage = data.message;
     lastPlayerName = data.player_name;
-    incomingMessageElement.textContent = `${data.player_name}: ${data.message}`;
+    incomingMessageElement.innerHTML = `<strong>${data.player_name}:</strong> ${data.message}`;
+    appendLanguageBadge(
+        incomingMessageElement,
+        data.language_code || null,
+        data.language_name || null
+    );
     generateResponseButton.disabled = false;
     
     // Store message data for feedback
     currentMessageData = {
         message: data.message,
-        player_name: data.player_name
+        player_name: data.player_name,
+        language_code: data.language_code || null,
+        language_name: data.language_name || null
     };
     
     // Add to chat history if relevant to this user
@@ -371,6 +383,8 @@ socket.on('player_message', (data) => {
         addToChatHistory({
             speaker: data.player_name,
             text: data.message,
+            languageCode: data.language_code || null,
+            languageName: data.language_name || null,
             isSelf: false,
             timestamp: new Date().toISOString()
         });
@@ -822,8 +836,20 @@ function fetchCharacterDetails(characterName) {
         .catch(error => console.error('Error fetching character details:', error));
 }
 
-function appendChatMessage(message, isSelf, originalMessage) {
-    console.log('Appending message:', {message, isSelf, originalMessage});
+function appendLanguageBadge(container, languageCode, languageName) {
+    if (!languageCode || !languageName) {
+        return;
+    }
+
+    const badge = document.createElement('span');
+    badge.className = 'badge bg-warning text-dark ms-2';
+    badge.title = `Ravenloft language code: ${languageCode}`;
+    badge.textContent = languageName;
+    container.appendChild(badge);
+}
+
+function appendChatMessage(message, isSelf, originalMessage, language = {}) {
+    console.log('Appending message:', {message, isSelf, originalMessage, language});
     
     try {
         const chatContainer = chatMessagesElement;
@@ -857,6 +883,11 @@ function appendChatMessage(message, isSelf, originalMessage) {
         
         // Add message HTML
     messageElement.innerHTML = message;
+    appendLanguageBadge(
+        messageElement,
+        language.languageCode,
+        language.languageName
+    );
     
     // Add timestamp
     const timestampElement = document.createElement('div');
@@ -877,7 +908,9 @@ function appendChatMessage(message, isSelf, originalMessage) {
             const messageData = {
                 playerName: playerName,
                 text: originalMessage || textContent,
-                fullMessage: message
+                fullMessage: message,
+                languageCode: language.languageCode || null,
+                languageName: language.languageName || null
             };
             
             // Make message clickable
@@ -897,6 +930,11 @@ function appendChatMessage(message, isSelf, originalMessage) {
                 
                 // Update the display of the selected message
                 incomingMessageElement.innerHTML = `<strong>${playerName}:</strong> ${messageData.text}`;
+                appendLanguageBadge(
+                    incomingMessageElement,
+                    messageData.languageCode,
+                    messageData.languageName
+                );
                 
                 // Show a "message selected" indicator
                 const selectedBadge = document.createElement('span');
@@ -1260,7 +1298,9 @@ function buildConversationContext(playerName) {
     // Format messages for context
     context.messages = contextMessages.map(msg => ({
         speaker: msg.speaker,
-        text: msg.text
+        text: msg.text,
+        languageCode: msg.languageCode || null,
+        languageName: msg.languageName || null
     }));
     
     // Create a brief summary of the conversation

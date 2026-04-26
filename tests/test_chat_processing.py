@@ -29,6 +29,11 @@ def test_hm_chat_markup_is_preserved_as_player_message():
 
     assert new_messages
     assert "Auguste Detourne" in new_messages[0]["message"]
-    assert "[HM] Good day, Monsieur." in new_messages[0]["message"]
+    assert "Good day, Monsieur." in new_messages[0]["message"]
+    assert "[HM]" not in new_messages[0]["message"]
+    assert new_messages[0]["language_code"] == "HM"
+    assert new_messages[0]["language_name"] == "High Mordentish"
     assert player_messages[0]["player_name"] == "Auguste Detourne"
-    assert player_messages[0]["message"] == "[HM] Good day, Monsieur."
+    assert player_messages[0]["message"] == "Good day, Monsieur."
+    assert player_messages[0]["language_code"] == "HM"
+    assert player_messages[0]["language_name"] == "High Mordentish"

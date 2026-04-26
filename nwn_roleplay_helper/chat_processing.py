@@ -15,6 +15,45 @@ from .settings import CHAT_HISTORY_DIR, SYSTEM_PATTERN
 CONTEXT_SUMMARY_CACHE: Dict[Tuple[str, str], Dict[str, Any]] = {}
 CONTEXT_SUMMARY_MAX_MESSAGES = 16
 CONTEXT_SUMMARY_REFRESH_TURNS = 4
+RAVENLOFT_LANGUAGES = {
+    "AN": "Abber",
+    "AK": "Akiri",
+    "AFL": "Ancient Flan",
+    "AFI": "Ancient Flan",
+    "AVE": "Avergnite",
+    "BAL": "Balok",
+    "CAV": "Cavitian",
+    "DRK": "Darkonese",
+    "FLK": "Falkovnian",
+    "FRL": "Farellian",
+    "FF": "Forfarian",
+    "GRB": "Grabenite",
+    "HM": "High Mordentish",
+    "IT": "Italian (Odiare)",
+    "KLD": "Kalidnayan",
+    "LMD": "Lamordian",
+    "LM": "Low Mordentish",
+    "LK": "Luktar",
+    "ND": "Nidalan",
+    "NOS": "Nosian",
+    "OK": "Old Kartakan",
+    "PZ": "Pharazian",
+    "RJ": "Rajian",
+    "RK": "Rokuma",
+    "SG": "Sanguine",
+    "SHU": "Shou (High Shou)",
+    "SC": "Sithican",
+    "SR": "Souragnien",
+    "ST": "Stauntonian",
+    "TP": "Tepestani",
+    "THN": "Thaani",
+    "VAS": "Vaasi",
+    "VCH": "Vechorite",
+    "VOS": "Vos",
+    "WS": "Wildspeak",
+    "ZR": "Zherisian",
+}
+LANGUAGE_PREFIX_RE = re.compile(r"^\s*\[([A-Za-z]+)\]\s*(.*)$")
 
 
 def setup_chat_history(
@@ -90,18 +129,49 @@ def _extract_player_name(message: str) -> str:
 def _extract_message_text(message: str) -> str:
     talk_match = re.search(r"\[Talk\] (.*)", message)
     if talk_match:
-        return _strip_nwn_markup(talk_match.group(1))
+        parsed = _parse_spoken_text(talk_match.group(1))
+        return _format_context_text(parsed)
 
     name_match = re.match(r"^[^:]+: (.*)", message)
     if name_match:
-        return _strip_nwn_markup(name_match.group(1))
+        parsed = _parse_spoken_text(name_match.group(1))
+        return _format_context_text(parsed)
 
-    return _strip_nwn_markup(message)
+    parsed = _parse_spoken_text(message)
+    return _format_context_text(parsed)
 
 
 def _strip_nwn_markup(text: str) -> str:
     """Remove NWN client formatting tags while preserving visible text."""
     return re.sub(r"</?c[^>]*>", "", text).strip()
+
+
+def _parse_spoken_text(text: str) -> Dict[str, Optional[str]]:
+    """Strip NWN markup and extract an optional Ravenloft language prefix."""
+    text = _strip_nwn_markup(text)
+    match = LANGUAGE_PREFIX_RE.match(text)
+    if not match:
+        return {"text": text, "language_code": None, "language_name": None}
+
+    code = match.group(1).upper()
+    language_name = RAVENLOFT_LANGUAGES.get(code)
+    if not language_name:
+        return {"text": text, "language_code": None, "language_name": None}
+
+    return {
+        "text": match.group(2).strip(),
+        "language_code": code,
+        "language_name": language_name,
+    }
+
+
+def _format_context_text(parsed_text: Dict[str, Optional[str]]) -> str:
+    """Format parsed speech for AI context."""
+    text = parsed_text.get("text") or ""
+    language_name = parsed_text.get("language_name")
+    if language_name:
+        return f"[{language_name}] {text}"
+    return text
 
 
 def _load_history_entries(
@@ -285,7 +355,16 @@ def _clean_context_messages(context: Optional[Dict[str, Any]]) -> list:
         speaker = str(msg.get("speaker", "")).strip()
         text = str(msg.get("text", "")).strip()
         if speaker and text:
-            messages.append({"speaker": speaker, "text": text})
+            messages.append(
+                {
+                    "speaker": speaker,
+                    "text": text,
+                    "language_name": msg.get("languageName")
+                    or msg.get("language_name"),
+                    "language_code": msg.get("languageCode")
+                    or msg.get("language_code"),
+                }
+            )
     return messages
 
 
@@ -339,7 +418,13 @@ def _build_reply_messages(
     context_messages = _clean_context_messages(context)
     if context_messages:
         recent_context = "\n".join(
-            f"{msg['speaker']}: {msg['text']}" for msg in context_messages
+            (
+                f"{msg['speaker']} "
+                f"({msg['language_name']}): {msg['text']}"
+                if msg.get("language_name")
+                else f"{msg['speaker']}: {msg['text']}"
+            )
+            for msg in context_messages
         )
         messages.append(
             {
@@ -503,7 +588,8 @@ def process_new_messages(
             if match:
                 account, char_name, mode, player_message = match.groups()
                 if mode == "Talk":
-                    original_message = _strip_nwn_markup(player_message)
+                    parsed_message = _parse_spoken_text(player_message)
+                    original_message = parsed_message["text"]
 
         # Only display accepted conversation format: [username] char name: [Talk] msg
         talk_match = re.match(r"^\[([^\]]+)\] ([^:]+): \[([^\]]+)\] (.*)$", line)
@@ -518,7 +604,8 @@ def process_new_messages(
             if logger:
                 logger.info(f"Skipping non-Talk line: {line[:120]}")
             continue
-        text = _strip_nwn_markup(text)
+        parsed_text = _parse_spoken_text(text)
+        text = parsed_text["text"]
         formatted_message = f"<strong>{speaker}:</strong> {text}"
 
         # Emit the new_message event to all clients
@@ -532,6 +619,8 @@ def process_new_messages(
                 "raw_message": line,
                 "is_own": is_own_message,
                 "original_message": original_message,
+                "language_code": parsed_text["language_code"],
+                "language_name": parsed_text["language_name"],
                 "client": client,
             },
         )
@@ -543,7 +632,8 @@ def process_new_messages(
             if match:
                 account, char_name, mode, player_message = match.groups()
                 if mode == "Talk":
-                    player_message = _strip_nwn_markup(player_message)
+                    parsed_message = _parse_spoken_text(player_message)
+                    player_message = parsed_message["text"]
                     if logger:
                         logger.info(
                             "Broadcasting player message from %s to all clients",
@@ -555,6 +645,8 @@ def process_new_messages(
                             "character": character_name,
                             "player_name": char_name,
                             "message": player_message,
+                            "language_code": parsed_message["language_code"],
+                            "language_name": parsed_message["language_name"],
                             "client": client,
                         },
                     )

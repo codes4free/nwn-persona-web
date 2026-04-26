@@ -23,6 +23,12 @@ def test_reply_prompt_grounds_selected_message_and_recent_chat():
                     "text": "So, are we awaiting someone?",
                 },
                 {"speaker": "Dolin Schneim", "text": "We are. Pereppi."},
+                {
+                    "speaker": "Auguste Detourne",
+                    "text": "Good day, Monsieur.",
+                    "languageName": "High Mordentish",
+                    "languageCode": "HM",
+                },
             ]
         },
         context_summary={},
@@ -34,5 +40,6 @@ def test_reply_prompt_grounds_selected_message_and_recent_chat():
     assert "Selected latest message from Dolin Schneim to Elvith Ma'for" in prompt_text
     assert "So, are we awaiting someone?" in prompt_text
     assert "We are. Pereppi." in prompt_text
+    assert "Auguste Detourne (High Mordentish): Good day, Monsieur." in prompt_text
     assert "Do not treat a name or short answer as a mysterious abstract topic" in prompt_text
     assert "answer it directly" in prompt_text.lower()
