@@ -141,6 +141,7 @@ nohup.out
 uploads/
 chat_history/
 feedback_data/
+users.json
 
 # Local certs/keys
 certs/

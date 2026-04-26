@@ -1,0 +1,22 @@
+[Unit]
+Description=NWN Persona Web
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=d6lab
+Group=d6lab
+WorkingDirectory=/home/d6lab/nwn-persona-web
+EnvironmentFile=-/home/d6lab/nwn-persona-web/.env
+ExecStart=/home/d6lab/nwn-persona-web/.venv/bin/python app.py
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/home/d6lab/nwn-persona-web
+
+[Install]
+WantedBy=multi-user.target

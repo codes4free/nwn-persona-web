@@ -11,8 +11,30 @@ from flask import (
     session,
     url_for,
 )
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from .storage import save_users
+
+HASH_PREFIXES = ("scrypt:", "pbkdf2:", "argon2:")
+
+
+def is_password_hash(value: Any) -> bool:
+    """Return whether a stored password value looks like a Werkzeug hash."""
+    return isinstance(value, str) and value.startswith(HASH_PREFIXES)
+
+
+def hash_password(password: str) -> str:
+    """Hash a password for storage."""
+    return generate_password_hash(password)
+
+
+def verify_password(stored_password: Any, candidate_password: str) -> bool:
+    """Verify both hashed passwords and legacy plain-text entries."""
+    if not isinstance(stored_password, str) or candidate_password is None:
+        return False
+    if is_password_hash(stored_password):
+        return check_password_hash(stored_password, candidate_password)
+    return stored_password == candidate_password
 
 
 def login_required(f):
@@ -35,7 +57,10 @@ def register_auth_routes(app, users: Dict[str, Any]) -> None:
         if request.method == "POST":
             username = request.form.get("username")
             password = request.form.get("password")
-            if username in users and users[username] == password:
+            if username in users and verify_password(users[username], password):
+                if not is_password_hash(users[username]):
+                    users[username] = hash_password(password)
+                    save_users(users)
                 session["user"] = username
                 flash("Logged in successfully!", "success")
                 return redirect(url_for("index"))
@@ -61,7 +86,7 @@ def register_auth_routes(app, users: Dict[str, Any]) -> None:
             if password != confirm_password:
                 flash("Passwords do not match", "error")
                 return redirect(url_for("register"))
-            users[username] = password
+            users[username] = hash_password(password)
             save_users(users)
             flash("Registration successful! Please log in.", "success")
             return redirect(url_for("login"))

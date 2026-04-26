@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import re
+import secrets
 import threading
 from typing import Optional
 
@@ -62,13 +63,39 @@ load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "nwnx-chatbot-secret")
+secret_key = os.getenv("SECRET_KEY")
+if not secret_key:
+    secret_key = secrets.token_hex(32)
+    logger.warning(
+        "SECRET_KEY is not set. Using an ephemeral development key; "
+        "set SECRET_KEY in production so sessions survive restarts."
+    )
+app.config["SECRET_KEY"] = secret_key
+
+
+def _socketio_cors_origins():
+    origins = os.getenv("SOCKETIO_CORS_ORIGINS", "").strip()
+    if not origins:
+        return None
+    if origins == "*":
+        logger.warning("SOCKETIO_CORS_ORIGINS is set to '*'. Use only for trusted LANs.")
+        return "*"
+    return [origin.strip() for origin in origins.split(",") if origin.strip()]
+
+
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE=os.getenv("SESSION_COOKIE_SAMESITE", "Lax"),
+    SESSION_COOKIE_SECURE=os.getenv("SESSION_COOKIE_SECURE", "").lower()
+    in ("1", "true", "yes"),
+    MAX_CONTENT_LENGTH=int(os.getenv("MAX_UPLOAD_BYTES", str(2 * 1024 * 1024))),
+)
 
 # Initialize SocketIO with proper configuration
 socketio = SocketIO(
     app,
     async_mode="eventlet",
-    cors_allowed_origins="*",
+    cors_allowed_origins=_socketio_cors_origins(),
     manage_session=False,
     ping_timeout=20,
     ping_interval=10,
@@ -161,6 +188,7 @@ def detect_character(line: str) -> Optional[str]:
 
 
 @app.route("/api/translate", methods=["POST"])
+@login_required
 def translate_message():
     """API endpoint to translate a custom message"""
     data = request.json
@@ -300,6 +328,7 @@ def set_active_character(n):
 
 
 @app.route("/api/history/<character>")
+@login_required
 def get_history(character):
     """Return chat history for a character"""
     try:
@@ -361,6 +390,7 @@ def upload_character_json():
 
 # Socket.IO events
 @app.route("/api/respond", methods=["POST"])
+@login_required
 def manual_respond():
     """Manually generate a response to a specific message"""
     data = request.json
@@ -550,6 +580,7 @@ register_socketio_handlers(
 
 
 @app.route("/api/feedback/<character>", methods=["POST"])
+@login_required
 def submit_feedback(character):
     """Submit feedback for a character response"""
     data = request.json
@@ -563,6 +594,7 @@ def submit_feedback(character):
 
 
 @app.route("/api/feedback/<character>", methods=["GET"])
+@login_required
 def get_feedback(character):
     """Get feedback summary for a character"""
     summary = get_character_feedback_summary(character)
@@ -630,6 +662,7 @@ def log_update():
 
 
 @app.route("/debug_last_log")
+@login_required
 def debug_last_log():
     """Quick sanity check to see last log_update received."""
     return jsonify(LAST_LOG_UPDATE)
@@ -738,6 +771,7 @@ def import_json_profile(n):
 
 # New endpoint to set the OpenAI API token for the session
 @app.route("/set_openai_token", methods=["POST"])
+@login_required
 def set_openai_token():
     token = request.form.get("openai_token")
     if not token:
@@ -748,6 +782,7 @@ def set_openai_token():
 
 # --- Multi-tone response generation endpoint ---
 @app.route("/generate_response", methods=["POST"])
+@login_required
 def generate_response():
     try:
         # Get the latest user message from the request payload
@@ -812,6 +847,7 @@ def generate_response():
 
 # Debug endpoint to get current server state
 @app.route("/debug")
+@login_required
 def debug_info():
     import datetime
 
@@ -836,6 +872,7 @@ def debug_info():
 
 # WebSocket debug page
 @app.route("/debug_websocket")
+@login_required
 def debug_websocket():
     return render_template("debug_websocket.html")
 
@@ -899,6 +936,7 @@ def socket_health_check():
 
 # Test message endpoint for debugging
 @app.route("/debug_send_message", methods=["POST"])
+@login_required
 def debug_send_message():
     """Endpoint to manually send a test message to all clients"""
     try:
@@ -934,10 +972,11 @@ def debug_send_message():
         return jsonify({"error": str(e)}), 500
 
 
-# Simple Socket.IO test page (no auth required)
+# Simple authenticated Socket.IO test page
 @app.route("/socket_test")
+@login_required
 def socket_test():
-    """Simple Socket.IO test page that doesn't require authentication"""
+    """Simple Socket.IO test page for authenticated operators."""
     return """
     <!DOCTYPE html>
     <html>
@@ -1119,8 +1158,9 @@ def socket_test():
 
 
 @app.route("/external_test")
+@login_required
 def external_test():
-    """Ultra-simplified Socket.IO test page for external connections with no dependencies"""
+    """Ultra-simplified Socket.IO test page for authenticated operators."""
     return """
     <!DOCTYPE html>
     <html>

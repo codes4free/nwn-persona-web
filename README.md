@@ -42,7 +42,14 @@ For more information about this feature, see the [Context Window Documentation](
 
 ## Get Started
 
-To learn more about our NWNX:EE Chatbot, pricing, and implementation details, please contact our sales team.
+1. Create a virtual environment with Python 3.11+.
+2. Install dependencies with `pip install -r requirements.txt`.
+3. Copy `.env.example` to `.env` and set a long random `SECRET_KEY`.
+4. Run `python app.py`.
+
+For a Linux host, use `deploy/nwn-persona-web.service` as the systemd service
+template so the app starts after reboot instead of depending on an interactive
+terminal session.
 
 ## Contact
 
@@ -53,6 +60,19 @@ For further information or to schedule a demo, please email ....(tired of phishi
 © 2025 D6LAB. All rights reserved. 
 
 ## Security and Connectivity
+
+### Authentication and Sessions
+
+- New passwords are stored with Werkzeug password hashes.
+- Legacy plain-text password entries are upgraded automatically after a
+  successful login.
+- `SECRET_KEY` must be set in production. If it is omitted, the app uses an
+  ephemeral development key and logs a warning.
+- Socket.IO is same-origin by default. Set `SOCKETIO_CORS_ORIGINS` to a
+  comma-separated list only for trusted external browser origins.
+- Session cookies are HTTP-only and same-site by default. Set
+  `SESSION_COOKIE_SECURE=true` when serving only through HTTPS.
+- Character JSON uploads are limited by `MAX_UPLOAD_BYTES`.
 
 ### HTTPS Support
 
