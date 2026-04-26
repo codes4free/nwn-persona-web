@@ -54,7 +54,9 @@
                 <div class="character-info p-3">
                     <h1 class="text-center mb-4">NWNX:EE Chatbot</h1>
                     <div class="d-flex justify-content-between align-items-center mb-3">
+                        {% if debug_tools_enabled %}
                         <a href="/debug_websocket" class="btn btn-sm btn-warning">Debug WebSocket</a>
+                        {% endif %}
                         <span id="socket-status" class="badge bg-secondary">Connecting...</span>
                     </div>
                     <div id="active-character">

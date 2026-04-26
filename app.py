@@ -11,6 +11,7 @@ import os
 import re
 import secrets
 import threading
+from functools import wraps
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -33,6 +34,7 @@ from nwn_roleplay_helper.settings import (
     CHAT_HISTORY_DIR,
     FEEDBACK_DIR,
     UPLOAD_FOLDER,
+    env_flag,
     ensure_runtime_dirs,
 )
 from nwn_roleplay_helper.socketio_server import register_socketio_handlers
@@ -84,12 +86,32 @@ def _socketio_cors_origins():
 
 
 app.config.update(
+    ENABLE_DEBUG_TOOLS=env_flag("ENABLE_DEBUG_TOOLS", False),
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE=os.getenv("SESSION_COOKIE_SAMESITE", "Lax"),
     SESSION_COOKIE_SECURE=os.getenv("SESSION_COOKIE_SECURE", "").lower()
     in ("1", "true", "yes"),
     MAX_CONTENT_LENGTH=int(os.getenv("MAX_UPLOAD_BYTES", str(2 * 1024 * 1024))),
 )
+
+
+def debug_tools_required(f):
+    """Expose operational debug tools only when explicitly enabled."""
+
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not app.config.get("ENABLE_DEBUG_TOOLS"):
+            abort(404)
+        return f(*args, **kwargs)
+
+    return decorated
+
+
+@app.context_processor
+def inject_feature_flags():
+    """Expose small feature flags to templates."""
+    return {"debug_tools_enabled": app.config.get("ENABLE_DEBUG_TOOLS", False)}
+
 
 # Initialize SocketIO with proper configuration
 socketio = SocketIO(
@@ -123,8 +145,8 @@ register_auth_routes(app, users)
 def favicon():
     return send_from_directory(
         os.path.join(app.root_path, "static"),
-        "favicon.ico",
-        mimetype="image/vnd.microsoft.icon",
+        "favicon.svg",
+        mimetype="image/svg+xml",
     )
 
 
@@ -664,6 +686,7 @@ def log_update():
 
 @app.route("/debug_last_log")
 @login_required
+@debug_tools_required
 def debug_last_log():
     """Quick sanity check to see last log_update received."""
     return jsonify(LAST_LOG_UPDATE)
@@ -849,6 +872,7 @@ def generate_response():
 # Debug endpoint to get current server state
 @app.route("/debug")
 @login_required
+@debug_tools_required
 def debug_info():
     import datetime
 
@@ -874,6 +898,7 @@ def debug_info():
 # WebSocket debug page
 @app.route("/debug_websocket")
 @login_required
+@debug_tools_required
 def debug_websocket():
     return render_template("debug_websocket.html")
 
@@ -883,13 +908,6 @@ def debug_websocket():
 def context_window_docs():
     """Render the context window documentation page"""
     return render_template("context_window.html")
-
-
-# Add route for SVG test
-@app.route("/svg-test")
-def svg_test():
-    """Render the SVG test page"""
-    return render_template("svg_test.html")
 
 
 # Add route for embedded SVG version
@@ -938,6 +956,7 @@ def socket_health_check():
 # Test message endpoint for debugging
 @app.route("/debug_send_message", methods=["POST"])
 @login_required
+@debug_tools_required
 def debug_send_message():
     """Endpoint to manually send a test message to all clients"""
     try:
@@ -976,6 +995,7 @@ def debug_send_message():
 # Simple authenticated Socket.IO test page
 @app.route("/socket_test")
 @login_required
+@debug_tools_required
 def socket_test():
     """Simple Socket.IO test page for authenticated operators."""
     return """
@@ -1160,6 +1180,7 @@ def socket_test():
 
 @app.route("/external_test")
 @login_required
+@debug_tools_required
 def external_test():
     """Ultra-simplified Socket.IO test page for authenticated operators."""
     return """

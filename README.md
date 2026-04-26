@@ -73,6 +73,8 @@ For further information or to schedule a demo, please email ....(tired of phishi
 - Session cookies are HTTP-only and same-site by default. Set
   `SESSION_COOKIE_SECURE=true` when serving only through HTTPS.
 - Character JSON uploads are limited by `MAX_UPLOAD_BYTES`.
+- Debug/operator routes are disabled by default. Set `ENABLE_DEBUG_TOOLS=true`
+  only while diagnosing Socket.IO or log ingestion issues.
 
 ### HTTPS Support
 
@@ -82,11 +84,11 @@ The application fully supports HTTPS for secure communication:
 2. HTTP to HTTPS redirection to ensure all traffic is encrypted
 3. Secure WebSocket connections (WSS) for real-time updates
 4. Automatic certificate renewal to maintain security
-5. For more information, see the [HTTPS Setup Guide](HTTPS_SETUP.md)
+5. Legacy Nginx/Let's Encrypt notes are archived in [docs/archive/legacy-nginx/HTTPS_SETUP.md](docs/archive/legacy-nginx/HTTPS_SETUP.md)
 
 ### WebSocket Troubleshooting
 
-If you experience any issues with the real-time communication in the application, we've created a dedicated WebSocket troubleshooting tool and guide:
+If you experience any issues with the real-time communication in the application, enable `ENABLE_DEBUG_TOOLS=true` and use the dedicated WebSocket troubleshooting tool and guide:
 
 1. Access the WebSocket debug tool at `/debug_websocket` to test your connection
 2. View detailed information about WebSocket status, transport type, and connection events

@@ -12,7 +12,7 @@ The application now supports:
 - Automatic HTTP to HTTPS redirection
 - IPv6 compatibility for all secure connections
 
-For more details on the HTTPS implementation, see [HTTPS Setup Guide](HTTPS_SETUP.md).
+For legacy Nginx/Let's Encrypt notes, see [HTTPS Setup Guide](docs/archive/legacy-nginx/HTTPS_SETUP.md).
 
 ### WebSocket Improvements
 
@@ -191,4 +191,4 @@ If you're still experiencing issues after trying these solutions, please:
 3. Check server console logs for any error messages
 4. Try using polling-only mode by modifying the transport order
 5. Verify HTTPS certificate validity with tools like SSL Labs
-6. Contact support with all of this information 
+6. Contact support with all of this information

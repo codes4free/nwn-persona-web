@@ -12,6 +12,14 @@ USERS_FILE = "users.json"
 UPLOAD_FOLDER = "uploads/character_json"
 
 
+def env_flag(name: str, default: bool = False) -> bool:
+    """Return a boolean setting from common environment flag values."""
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def ensure_runtime_dirs() -> None:
     """Ensure runtime directories exist."""
     os.makedirs(CHAT_HISTORY_DIR, exist_ok=True)
