@@ -90,13 +90,18 @@ def _extract_player_name(message: str) -> str:
 def _extract_message_text(message: str) -> str:
     talk_match = re.search(r"\[Talk\] (.*)", message)
     if talk_match:
-        return talk_match.group(1)
+        return _strip_nwn_markup(talk_match.group(1))
 
     name_match = re.match(r"^[^:]+: (.*)", message)
     if name_match:
-        return name_match.group(1)
+        return _strip_nwn_markup(name_match.group(1))
 
-    return message
+    return _strip_nwn_markup(message)
+
+
+def _strip_nwn_markup(text: str) -> str:
+    """Remove NWN client formatting tags while preserving visible text."""
+    return re.sub(r"</?c[^>]*>", "", text).strip()
 
 
 def _load_history_entries(
@@ -419,8 +424,9 @@ def process_new_messages(
         if not line.strip():
             continue
 
-        # Skip lines with <c> tags - these are item/action notifications, not chat
-        if "<c>" in line and "</c>" in line:
+        # Skip colored UI/system notifications, but keep actual chat lines such as
+        # "<c>[HM]</c> Good day" because the tag only colors visible speech text.
+        if "<c" in line and "</c>" in line and "[Talk]" not in line:
             if logger:
                 logger.info(f"Skipping system notification: {line[:30]}...")
             continue
@@ -497,7 +503,7 @@ def process_new_messages(
             if match:
                 account, char_name, mode, player_message = match.groups()
                 if mode == "Talk":
-                    original_message = player_message
+                    original_message = _strip_nwn_markup(player_message)
 
         # Only display accepted conversation format: [username] char name: [Talk] msg
         talk_match = re.match(r"^\[([^\]]+)\] ([^:]+): \[([^\]]+)\] (.*)$", line)
@@ -512,6 +518,7 @@ def process_new_messages(
             if logger:
                 logger.info(f"Skipping non-Talk line: {line[:120]}")
             continue
+        text = _strip_nwn_markup(text)
         formatted_message = f"<strong>{speaker}:</strong> {text}"
 
         # Emit the new_message event to all clients
@@ -536,6 +543,7 @@ def process_new_messages(
             if match:
                 account, char_name, mode, player_message = match.groups()
                 if mode == "Talk":
+                    player_message = _strip_nwn_markup(player_message)
                     if logger:
                         logger.info(
                             "Broadcasting player message from %s to all clients",
