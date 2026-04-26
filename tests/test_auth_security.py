@@ -1,4 +1,4 @@
-from nwn_persona_web.auth import hash_password, is_password_hash, verify_password
+from nwn_roleplay_helper.auth import hash_password, is_password_hash, verify_password
 
 
 def test_hash_password_does_not_store_plain_text():

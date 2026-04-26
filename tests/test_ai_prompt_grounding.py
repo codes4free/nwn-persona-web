@@ -1,4 +1,4 @@
-from nwn_persona_web.chat_processing import _build_reply_messages
+from nwn_roleplay_helper.chat_processing import _build_reply_messages
 
 
 def test_reply_prompt_grounds_selected_message_and_recent_chat():

@@ -27,16 +27,16 @@ from flask_socketio import SocketIO
 from werkzeug.utils import secure_filename
 
 import character_manager  # Import the character manager module
-from nwn_persona_web import chat_processing
-from nwn_persona_web.auth import login_required, register_auth_routes
-from nwn_persona_web.settings import (
+from nwn_roleplay_helper import chat_processing
+from nwn_roleplay_helper.auth import login_required, register_auth_routes
+from nwn_roleplay_helper.settings import (
     CHAT_HISTORY_DIR,
     FEEDBACK_DIR,
     UPLOAD_FOLDER,
     ensure_runtime_dirs,
 )
-from nwn_persona_web.socketio_server import register_socketio_handlers
-from nwn_persona_web.storage import load_users
+from nwn_roleplay_helper.socketio_server import register_socketio_handlers
+from nwn_roleplay_helper.storage import load_users
 
 # Set up more detailed logging
 logging.basicConfig(
