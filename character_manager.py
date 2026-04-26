@@ -9,6 +9,41 @@ CHARACTER_PROFILES_DIR = "character_profiles"
 os.makedirs(CHARACTER_PROFILES_DIR, exist_ok=True)
 
 
+def _profile_filename_candidates(character_name):
+    """Return filename variants used by existing profile saves."""
+    return {
+        f"{character_name}.json",
+        f"{character_name.replace(' ', '_')}.json",
+    }
+
+
+def _find_profile_path(character_name):
+    """Find a profile by JSON name, with fallback for legacy filename styles."""
+    filename_candidates = _profile_filename_candidates(character_name)
+    fallback_path = None
+
+    for root, dirs, files in os.walk(CHARACTER_PROFILES_DIR):
+        for file in files:
+            if not file.endswith(".json"):
+                continue
+
+            profile_path = os.path.join(root, file)
+
+            if file in filename_candidates and fallback_path is None:
+                fallback_path = profile_path
+
+            try:
+                with open(profile_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                continue
+
+            if data.get("name") == character_name:
+                return profile_path
+
+    return fallback_path
+
+
 def load_all_profiles():
     """Load all character profiles from user-specific directories under 'character_profiles'."""
     profiles = {}
@@ -29,16 +64,14 @@ def load_all_profiles():
 
 def get_profile(character_name):
     """Get a specific character profile"""
-    target_name = f"{character_name.replace(' ', '_')}.json"
-    for root, dirs, files in os.walk(CHARACTER_PROFILES_DIR):
-        if target_name in files:
-            profile_path = os.path.join(root, target_name)
-            try:
-                with open(profile_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception as e:
-                print(f"Error reading profile {character_name}: {e}")
-                return None
+    profile_path = _find_profile_path(character_name)
+    if profile_path:
+        try:
+            with open(profile_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error reading profile {character_name}: {e}")
+            return None
     return None
 
 
@@ -58,22 +91,20 @@ def save_profile(data):
 
 def delete_profile(character_name):
     """Delete a character profile"""
-    target_name = f"{character_name.replace(' ', '_')}.json"
-    for root, dirs, files in os.walk(CHARACTER_PROFILES_DIR):
-        if target_name in files:
-            profile_path = os.path.join(root, target_name)
-            try:
-                os.remove(profile_path)
-                # refresh global cache
-                global character_profiles
-                character_profiles = load_all_profiles()
-                return {
-                    "success": True,
-                    "message": f"Profile for {character_name} deleted successfully",
-                }
-            except Exception as e:
-                print(f"Error deleting profile {character_name}: {e}")
-                return {"error": f"Failed to delete profile: {str(e)}"}
+    profile_path = _find_profile_path(character_name)
+    if profile_path:
+        try:
+            os.remove(profile_path)
+            # refresh global cache
+            global character_profiles
+            character_profiles = load_all_profiles()
+            return {
+                "success": True,
+                "message": f"Profile for {character_name} deleted successfully",
+            }
+        except Exception as e:
+            print(f"Error deleting profile {character_name}: {e}")
+            return {"error": f"Failed to delete profile: {str(e)}"}
 
     return {"error": "Character profile not found"}
 
@@ -112,12 +143,7 @@ def update_profile(character_name, profile_data):
     if not character_name:
         return {"error": "Character name is required"}
 
-    target_name = f"{character_name.replace(' ', '_')}.json"
-    profile_path = None
-    for root, dirs, files in os.walk(CHARACTER_PROFILES_DIR):
-        if target_name in files:
-            profile_path = os.path.join(root, target_name)
-            break
+    profile_path = _find_profile_path(character_name)
     if not profile_path:
         return {"error": "Character profile not found"}
 
@@ -216,10 +242,7 @@ def import_profile_from_json(json_data):
         character_name = profile_data["name"]
 
         # Check if a character with this name already exists
-        profile_path = os.path.join(
-            CHARACTER_PROFILES_DIR, f"{character_name.replace(' ', '_')}.json"
-        )
-        if os.path.exists(profile_path):
+        if _find_profile_path(character_name):
             return {
                 "error": f"A character with the name '{character_name}' already exists",
                 "exists": True,
