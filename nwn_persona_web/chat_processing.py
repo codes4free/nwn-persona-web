@@ -251,6 +251,115 @@ def get_context_summary_from_history(
     return {"summary": summary, "messages": context_messages}
 
 
+def _format_character_profile(persona: Dict[str, Any]) -> str:
+    """Format character profile fields for model grounding."""
+    return "\n".join(
+        [
+            f"Persona: {persona.get('persona', '')}",
+            f"Background: {persona.get('background', '')}",
+            f"Appearance: {persona.get('appearance', '')}",
+            f"Traits: {', '.join(persona.get('traits', []))}",
+            f"Roleplay Prompt: {persona.get('roleplay_prompt', '')}",
+            (
+                "Interaction Constraints: "
+                f"{', '.join(persona.get('interaction_constraints', []))}"
+            ),
+            f"Mannerisms: {', '.join(persona.get('mannerisms', []))}",
+            f"Example Dialogue: {persona.get('dialogue_examples', [])}",
+        ]
+    )
+
+
+def _clean_context_messages(context: Optional[Dict[str, Any]]) -> list:
+    """Return compact, valid context messages in chronological order."""
+    if not context or not context.get("messages"):
+        return []
+
+    messages = []
+    for msg in context.get("messages", [])[-8:]:
+        speaker = str(msg.get("speaker", "")).strip()
+        text = str(msg.get("text", "")).strip()
+        if speaker and text:
+            messages.append({"speaker": speaker, "text": text})
+    return messages
+
+
+def _build_reply_messages(
+    *,
+    character_name: str,
+    player_message: str,
+    player_name: str,
+    persona: Dict[str, Any],
+    context: Optional[Dict[str, Any]],
+    context_summary: Dict[str, str],
+    creativity_instruction: str,
+) -> list:
+    """Build the chat completion messages for grounded in-character replies."""
+    player_name = player_name or "the selected speaker"
+    system_prompt = (
+        "You are writing grounded roleplay replies for Neverwinter Nights EE.\n"
+        f"You must speak only as {character_name}.\n"
+        "Use the character profile as style, but use the selected chat line and "
+        "recent conversation as the source of truth.\n\n"
+        f"{_format_character_profile(persona)}\n"
+        f"{creativity_instruction}\n\n"
+        "Grounding rules:\n"
+        "- The selected player message is the latest turn. Answer it directly.\n"
+        "- Do not invent schemes, secrets, relationships, locations, or motives.\n"
+        "- Do not treat a name or short answer as a mysterious abstract topic.\n"
+        "- If the message answers a prior question, acknowledge the answer and "
+        "continue naturally from the immediate scene.\n"
+        "- Prefer concrete continuity over poetic flavor.\n"
+        "- Keep each option one or two short sentences, usually 8 to 35 words.\n"
+        "- Never use em dashes. Use a comma, period, or regular hyphen instead.\n"
+        "- Return exactly three options labeled 1., 2., and 3."
+    )
+
+    messages = [{"role": "system", "content": system_prompt}]
+
+    if context_summary and (
+        context_summary.get("persona_notes") or context_summary.get("scene_summary")
+    ):
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "Longer conversation memory:\n"
+                    f"Persona continuity: {context_summary.get('persona_notes', '')}\n"
+                    f"Scene context: {context_summary.get('scene_summary', '')}"
+                ),
+            }
+        )
+
+    context_messages = _clean_context_messages(context)
+    if context_messages:
+        recent_context = "\n".join(
+            f"{msg['speaker']}: {msg['text']}" for msg in context_messages
+        )
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "Recent chat, oldest to newest. Use this to resolve references:\n"
+                    f"{recent_context}"
+                ),
+            }
+        )
+
+    messages.append(
+        {
+            "role": "user",
+            "content": (
+                f"Selected latest message from {player_name} to {character_name}: "
+                f"{player_message}\n\n"
+                "Write three accurate in-character reply options. Make them useful "
+                "for the next thing the character would actually say in this scene."
+            ),
+        }
+    )
+    return messages
+
+
 def monitor_chat(*, is_running, logger=None) -> None:
     """Monitor chat via WebSocket/API (no local file monitoring)."""
     if logger:
@@ -449,6 +558,7 @@ def generate_in_character_reply(
     player_message,
     num_alternatives=3,
     context=None,
+    player_name="Unknown",
     *,
     character_profiles: Dict[str, Any],
     get_openai_api_key,
@@ -555,13 +665,26 @@ def generate_in_character_reply(
         {"role": "user", "content": f"Player says: {player_message}\nYour replies:"}
     )
 
+    if logger and context and context.get("messages"):
+        logger.info("Using grounded context with %s messages", len(context["messages"]))
+
+    messages = _build_reply_messages(
+        character_name=character_name,
+        player_message=player_message,
+        player_name=player_name,
+        persona=persona,
+        context=context,
+        context_summary=context_summary,
+        creativity_instruction=creativity_instruction,
+    )
+
     try:
         openai.api_key = get_openai_api_key()
         response = openai.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
             max_tokens=400,
-            temperature=temperature,
+            temperature=min(temperature, 0.55),
             n=1,
         )
 

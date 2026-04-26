@@ -406,6 +406,7 @@ def manual_respond():
     responses = chat_processing.generate_in_character_reply(
         character_name,
         player_message,
+        player_name=player_name,
         context=context,
         character_profiles=character_profiles,
         get_openai_api_key=get_openai_api_key,
